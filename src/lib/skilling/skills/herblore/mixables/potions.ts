@@ -1,7 +1,7 @@
 import { Bank } from 'oldschooljs';
 
 import getOSItem from '../../../../util/getOSItem';
-import { Mixable } from '../../../types';
+import type { Mixable } from '../../../types';
 
 const Potions: Mixable[] = [
 	{
@@ -42,6 +42,21 @@ const Potions: Mixable[] = [
 		inputItems: new Bank({ 'Tarromin potion (unf)': 1, Ashes: 1 }),
 		tickRate: 2,
 		bankTimePerPotion: 0.3
+	},
+	{
+		item: getOSItem('Guthix rest (3)'),
+		aliases: ['guthix rest (3)', 'guthix rest'],
+		level: 18,
+		xp: 59,
+		inputItems: new Bank({
+			'Cup of hot water': 1,
+			'Guam leaf': 1,
+			Harralander: 1,
+			Marrentill: 1
+		}),
+		tickRate: 2,
+		bankTimePerPotion: 1.5,
+		zahur: false
 	},
 	{
 		item: getOSItem('Compost potion (3)'),
@@ -299,18 +314,6 @@ const Potions: Mixable[] = [
 		bankTimePerPotion: 0.45
 	},
 	{
-		item: getOSItem('Cadantine blood potion (unf)'),
-		aliases: ['cadantine blood potion (unf)', 'cadantine blood potion', 'cadantine blood'],
-		level: 80,
-		xp: 0,
-		inputItems: new Bank({
-			'Vial of blood': 1,
-			Cadantine: 1
-		}),
-		tickRate: 1,
-		bankTimePerPotion: 0.3
-	},
-	{
 		item: getOSItem('Bastion potion (3)'),
 		aliases: ['bastion potion (3)', 'bastion potion', 'bastion'],
 		level: 80,
@@ -387,6 +390,15 @@ const Potions: Mixable[] = [
 		bankTimePerPotion: 0.17
 	},
 	{
+		item: getOSItem('Menaphite remedy (3)'),
+		aliases: ['menaphite', 'remedy'],
+		level: 88,
+		xp: 200,
+		inputItems: new Bank({ 'Dwarf weed potion (unf)': 1, 'Lily of the sands': 1 }),
+		tickRate: 2,
+		bankTimePerPotion: 0.3
+	},
+	{
 		item: getOSItem('Super combat potion (4)'),
 		aliases: ['super combat potion (4)', 'super combat potion', 'super combat'],
 		level: 90,
@@ -429,6 +441,15 @@ const Potions: Mixable[] = [
 		xp: 125,
 		inputItems: new Bank({ 'Anti-venom (4)': 1, Torstol: 1 }),
 		tickRate: 2,
+		bankTimePerPotion: 0.3
+	},
+	{
+		item: getOSItem('Extended anti-venom+(4)'),
+		aliases: ['Extended anti-venom+(4)', 'Extended anti-venom'],
+		level: 94,
+		xp: 80,
+		inputItems: new Bank().add('Anti-venom+(4)').add('Araxyte venom sack', 4),
+		tickRate: 3,
 		bankTimePerPotion: 0.3
 	},
 	{

@@ -1,11 +1,12 @@
-import { time } from '@discordjs/builders';
-import { User } from '@prisma/client';
+import { time } from 'discord.js';
 import { Bank } from 'oldschooljs';
 
-import birdhouses, { Birdhouse } from '../../../lib/skilling/skills/hunter/birdHouseTrapping';
-import defaultBirdhouseTrap, { BirdhouseData } from '../../../lib/skilling/skills/hunter/defaultBirdHouseTrap';
-import { BirdhouseActivityTaskOptions } from '../../../lib/types/minions';
-import { formatDuration, itemID, stringMatches } from '../../../lib/util';
+import type { Birdhouse } from '../../../lib/skilling/skills/hunter/birdHouseTrapping';
+import birdhouses, { birdhouseSeeds } from '../../../lib/skilling/skills/hunter/birdHouseTrapping';
+import type { BirdhouseData } from '../../../lib/skilling/skills/hunter/defaultBirdHouseTrap';
+import defaultBirdhouseTrap from '../../../lib/skilling/skills/hunter/defaultBirdHouseTrap';
+import type { BirdhouseActivityTaskOptions } from '../../../lib/types/minions';
+import { formatDuration, stringMatches } from '../../../lib/util';
 import addSubTaskToActivityTask from '../../../lib/util/addSubTaskToActivityTask';
 import { updateBankSetting } from '../../../lib/util/updateBankSetting';
 import { mahojiUsersSettingsFetch, userHasGracefulEquipped } from '../../mahojiSettings';
@@ -18,155 +19,9 @@ interface BirdhouseDetails {
 	readyAt: Date | null;
 }
 
-const birdhouseSeedReq = [
-	{
-		itemID: itemID('Hammerstone seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Asgarnian seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Barley seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Yanillian seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Krandorian seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Wildblood seed'),
-		amount: 5
-	},
-	{
-		itemID: itemID('Potato seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Onion seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Cabbage seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Tomato seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Sweetcorn seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Strawberry seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Watermelon seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Marigold seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Rosemary seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Nasturtium seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Woad seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Limpwurt seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Marrentill seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Guam seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Tarromin seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Harralander seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Jute seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('White lily seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Snape grass seed'),
-		amount: 10
-	},
-	{
-		itemID: itemID('Irit seed'),
-		amount: 5
-	},
-
-	{
-		itemID: itemID('Dwarf weed seed'),
-		amount: 5
-	},
-	{
-		itemID: itemID('Kwuarm seed'),
-		amount: 5
-	},
-	{
-		itemID: itemID('Cadantine seed'),
-		amount: 5
-	},
-	{
-		itemID: itemID('Lantadyme seed'),
-		amount: 5
-	},
-	{
-		itemID: itemID('Avantoe seed'),
-		amount: 5
-	},
-	{
-		itemID: itemID('Toadflax seed'),
-		amount: 5
-	},
-	{
-		itemID: itemID('Ranarr seed'),
-		amount: 5
-	},
-	{
-		itemID: itemID('Snapdragon seed'),
-		amount: 5
-	},
-	{
-		itemID: itemID('Torstol seed'),
-		amount: 5
-	}
-];
-
-export async function calculateBirdhouseDetails(userID: string | bigint): Promise<BirdhouseDetails> {
-	const bh = await mahojiUsersSettingsFetch(userID, {
-		minion_birdhouseTraps: true
-	});
-	if (!bh.minion_birdhouseTraps) {
+export function calculateBirdhouseDetails(user: MUser): BirdhouseDetails {
+	const birdHouseTraps = user.user.minion_birdhouseTraps;
+	if (!birdHouseTraps) {
 		return {
 			raw: defaultBirdhouseTrap,
 			isReady: false,
@@ -176,7 +31,7 @@ export async function calculateBirdhouseDetails(userID: string | bigint): Promis
 		};
 	}
 
-	const details = bh.minion_birdhouseTraps as unknown as BirdhouseData;
+	const details = birdHouseTraps as unknown as BirdhouseData;
 
 	const birdHouse = details.lastPlaced ? birdhouses.find(_birdhouse => _birdhouse.name === details.lastPlaced) : null;
 	if (!birdHouse) throw new Error(`Missing ${details.lastPlaced} birdhouse`);
@@ -194,8 +49,8 @@ export async function calculateBirdhouseDetails(userID: string | bigint): Promis
 	};
 }
 
-export async function birdhouseCheckCommand(user: User) {
-	const details = await calculateBirdhouseDetails(user.id);
+export async function birdhouseCheckCommand(user: MUser) {
+	const details = calculateBirdhouseDetails(user);
 	if (!details.birdHouse) {
 		return 'You have no birdhouses planted.';
 	}
@@ -209,8 +64,8 @@ export async function birdhouseHarvestCommand(user: MUser, channelID: string, in
 	const infoStr: string[] = [];
 	const boostStr: string[] = [];
 
-	const existingBirdhouse = await calculateBirdhouseDetails(user.id);
-	if (!existingBirdhouse.isReady && existingBirdhouse.raw.lastPlaced) return birdhouseCheckCommand(user.user);
+	const existingBirdhouse = await calculateBirdhouseDetails(user);
+	if (!existingBirdhouse.isReady && existingBirdhouse.raw.lastPlaced) return birdhouseCheckCommand(user);
 
 	let birdhouseToPlant = inputBirdhouseName
 		? birdhouses.find(_birdhouse =>
@@ -219,7 +74,7 @@ export async function birdhouseHarvestCommand(user: MUser, channelID: string, in
 						stringMatches(alias, inputBirdhouseName) ||
 						stringMatches(alias.split(' ')[0], inputBirdhouseName)
 				)
-		  )
+			)
 		: undefined;
 	if (!birdhouseToPlant && existingBirdhouse.birdHouse) birdhouseToPlant = existingBirdhouse.birdHouse;
 
@@ -246,7 +101,7 @@ export async function birdhouseHarvestCommand(user: MUser, channelID: string, in
 		duration *= 0.9;
 	}
 	let gotCraft = false;
-	let removeBank = new Bank();
+	const removeBank = new Bank();
 	const premadeBankCost = birdhouseToPlant.houseItemReq.clone().multiply(4);
 	if (user.owns(premadeBankCost)) {
 		removeBank.add(premadeBankCost);
@@ -259,13 +114,31 @@ export async function birdhouseHarvestCommand(user: MUser, channelID: string, in
 	}
 
 	let canPay = false;
-	for (const currentSeed of birdhouseSeedReq) {
-		const seedCost = new Bank().add(currentSeed.itemID, currentSeed.amount * 4);
-		if (userBank.has(seedCost)) {
-			infoStr.push(`You baited the birdhouses with ${seedCost}.`);
-			removeBank.add(seedCost);
-			canPay = true;
-			break;
+
+	const mUser = await mahojiUsersSettingsFetch(user.id, { favorite_bh_seeds: true });
+	const favourites = mUser.favorite_bh_seeds;
+	if (favourites.length > 0) {
+		for (const fav of favourites) {
+			const seed = birdhouseSeeds.find(s => s.item.id === fav);
+			if (!seed) continue;
+			const seedCost = new Bank().add(seed.item.id, seed.amount * 4);
+			if (userBank.has(seedCost)) {
+				infoStr.push(`You baited the birdhouses with ${seedCost}.`);
+				removeBank.add(seedCost);
+				canPay = true;
+				break;
+			}
+		}
+		if (!canPay) return "You don't have enough favourited seeds to bait the birdhouses.";
+	} else {
+		for (const currentSeed of birdhouseSeeds) {
+			const seedCost = new Bank().add(currentSeed.item.id, currentSeed.amount * 4);
+			if (userBank.has(seedCost)) {
+				infoStr.push(`You baited the birdhouses with ${seedCost}.`);
+				removeBank.add(seedCost);
+				canPay = true;
+				break;
+			}
 		}
 	}
 

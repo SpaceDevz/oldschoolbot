@@ -1,31 +1,41 @@
 import { ButtonBuilder, ButtonStyle } from 'discord.js';
 import { Bank } from 'oldschooljs';
 
+import { BitField, MAX_CLUES_DROPPED } from '../constants';
 import { ClueTiers } from './clueTiers';
 
-export function getClueScoresFromOpenables(openableScores: Bank, mutate = false) {
-	return openableScores.filter(item => Boolean(ClueTiers.find(ct => ct.id === item.id)), mutate);
+export function getClueScoresFromOpenables(openableScores: Bank) {
+	return openableScores.filter(item => Boolean(ClueTiers.find(ct => ct.id === item.id)));
 }
 
-/**
- * Removes extra clue scrolls from loot, if they got more than 1 or if they already own 1.
- */
-export function deduplicateClueScrolls({ loot, currentBank }: { loot: Bank; currentBank: Bank }) {
-	const newLoot = loot.clone();
-	for (const { scrollID } of ClueTiers) {
-		if (!newLoot.has(scrollID)) continue;
-		if (currentBank.has(scrollID)) {
-			newLoot.remove(scrollID, newLoot.amount(scrollID));
-		} else {
-			newLoot.bank[scrollID] = 1;
+export function deduplicateClueScrolls(bank: Bank) {
+	const theirClues = new Bank();
+	let cluesLeftWeCanGive = MAX_CLUES_DROPPED;
+	for (let i = ClueTiers.length; i > 0; i--) {
+		if (cluesLeftWeCanGive <= 0) {
+			break;
+		}
+		const tier = ClueTiers[i - 1];
+		const qtyToAdd = Math.min(cluesLeftWeCanGive, bank.amount(tier.scrollID));
+		theirClues.add(tier.scrollID, qtyToAdd);
+		cluesLeftWeCanGive -= qtyToAdd;
+		if (
+			theirClues
+				.items()
+				.map(i => i[1])
+				.reduce((a, b) => a + b, 0) > MAX_CLUES_DROPPED
+		) {
+			break;
 		}
 	}
-	return newLoot;
+
+	for (const tier of ClueTiers) bank.set(tier.scrollID, 0);
+	for (const [itemID, qty] of theirClues.items()) bank.set(itemID, qty);
 }
 
-export function buildClueButtons(loot: Bank | null, perkTier: number) {
+export function buildClueButtons(loot: Bank | null, perkTier: number, user: MUser) {
 	const components: ButtonBuilder[] = [];
-	if (loot && perkTier > 1) {
+	if (loot && perkTier > 1 && !user.bitfield.includes(BitField.DisableClueButtons)) {
 		const clueReceived = ClueTiers.filter(tier => loot.amount(tier.scrollID) > 0);
 		components.push(
 			...clueReceived.map(clue =>

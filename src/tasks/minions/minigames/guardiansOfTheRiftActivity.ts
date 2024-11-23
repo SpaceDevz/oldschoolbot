@@ -1,7 +1,6 @@
-import { formatOrdinal } from '@oldschoolgg/toolkit';
+import { formatOrdinal } from '@oldschoolgg/toolkit/util';
 import { randArrItem, randInt } from 'e';
-import { Bank } from 'oldschooljs';
-import { SkillsEnum } from 'oldschooljs/dist/constants';
+import { Bank, SkillsEnum } from 'oldschooljs';
 
 import { Events } from '../../../lib/constants';
 import { trackLoot } from '../../../lib/lootTrack';
@@ -14,7 +13,7 @@ import { makeBankImage } from '../../../lib/util/makeBankImage';
 import { updateBankSetting } from '../../../lib/util/updateBankSetting';
 import { calcMaxRCQuantity, userStatsUpdate } from '../../../mahoji/mahojiSettings';
 import { rewardsGuardianTable } from './../../../lib/simulation/rewardsGuardian';
-import { GuardiansOfTheRiftActivityTaskOptions } from './../../../lib/types/minions';
+import type { GuardiansOfTheRiftActivityTaskOptions } from './../../../lib/types/minions';
 
 const catalyticRunesArray: string[] = [
 	'Mind rune',
@@ -74,7 +73,7 @@ export const guardiansOfTheRiftTask: MinionTask = {
 			})
 		]);
 
-		let runesLoot = new Bank();
+		const runesLoot = new Bank();
 		let inventorySize = 28;
 		const { bank } = user;
 		// For each pouch the user has, increase their inventory size.
@@ -88,7 +87,7 @@ export const guardiansOfTheRiftTask: MinionTask = {
 		let setBonus = 1;
 		if (
 			user.gear.skilling.hasEquipped(
-				Object.keys(Runecraft.raimentsOfTheEyeItems).map(i => parseInt(i)),
+				Object.keys(Runecraft.raimentsOfTheEyeItems).map(i => Number.parseInt(i)),
 				true
 			)
 		) {
@@ -96,7 +95,7 @@ export const guardiansOfTheRiftTask: MinionTask = {
 		} else {
 			// For each Raiments of the Eye item, check if they have it, give its' quantity boost if so (NO bonus XP).
 			for (const [itemID, bonus] of Object.entries(Runecraft.raimentsOfTheEyeItems)) {
-				if (user.gear.skilling.hasEquipped([parseInt(itemID)], false)) {
+				if (user.gear.skilling.hasEquipped([Number.parseInt(itemID)], false)) {
 					setBonus += bonus / 100;
 				}
 			}
@@ -124,7 +123,7 @@ export const guardiansOfTheRiftTask: MinionTask = {
 			runesLoot.add(rune, Math.floor(quantityPerEssence * inventorySize * setBonus));
 		}
 
-		let rewardsGuardianLoot = new Bank();
+		const rewardsGuardianLoot = new Bank();
 		let rewardsQty = 0;
 		for (let i = 0; i < quantity; i++) {
 			rewardsQty += randInt(rolls - 1, rolls);

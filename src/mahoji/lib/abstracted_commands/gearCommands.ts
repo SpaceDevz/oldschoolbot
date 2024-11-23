@@ -1,26 +1,29 @@
-import { toTitleCase } from '@oldschoolgg/toolkit';
-import { GearPreset } from '@prisma/client';
-import { ChatInputCommandInteraction } from 'discord.js';
+import { PerkTier, toTitleCase } from '@oldschoolgg/toolkit/util';
+import type { CommandResponse } from '@oldschoolgg/toolkit/util';
+import type { GearPreset } from '@prisma/client';
+import type { ChatInputCommandInteraction } from 'discord.js';
 import { objectValues } from 'e';
-import { CommandResponse } from 'mahoji/dist/lib/structures/ICommand';
 import { Bank } from 'oldschooljs';
 
-import { MAX_INT_JAVA, PATRON_ONLY_GEAR_SETUP, PerkTier } from '../../../lib/constants';
+import { MAX_INT_JAVA, PATRON_ONLY_GEAR_SETUP } from '../../../lib/constants';
 import { generateAllGearImage, generateGearImage } from '../../../lib/gear/functions/generateGearImage';
-import { GearSetup, GearSetupType, GearStat } from '../../../lib/gear/types';
+import type { GearSetup, GearSetupType } from '../../../lib/gear/types';
+import { GearStat } from '../../../lib/gear/types';
 import getUserBestGearFromBank from '../../../lib/minions/functions/getUserBestGearFromBank';
 import { unEquipAllCommand } from '../../../lib/minions/functions/unequipAllCommand';
-import { prisma } from '../../../lib/settings/prisma';
-import { defaultGear, Gear, globalPresets } from '../../../lib/structures/Gear';
+
+import { Gear, defaultGear, globalPresets } from '../../../lib/structures/Gear';
 import { assert, formatSkillRequirements, isValidGearSetup, stringMatches } from '../../../lib/util';
+import calculateGearLostOnDeathWilderness from '../../../lib/util/calculateGearLostOnDeathWilderness';
 import { gearEquipMultiImpl } from '../../../lib/util/equipMulti';
 import { getItem } from '../../../lib/util/getOSItem';
 import { handleMahojiConfirmation } from '../../../lib/util/handleMahojiConfirmation';
 import { minionIsBusy } from '../../../lib/util/minionIsBusy';
-import { transactItemsFromBank } from '../../../lib/util/transactItemsFromBank';
 import { mahojiParseNumber } from '../../mahojiSettings';
 
-export async function gearPresetEquipCommand(user: MUser, gearSetup: string, presetName: string): CommandResponse {
+import { getSimilarItems } from '../../../lib/data/similarItems';
+
+async function gearPresetEquipCommand(user: MUser, gearSetup: string, presetName: string): CommandResponse {
 	if (user.minionIsBusy) {
 		return `${user.minionName} is currently out on a trip, so you can't change their gear!`;
 	}
@@ -38,13 +41,42 @@ export async function gearPresetEquipCommand(user: MUser, gearSetup: string, pre
 		return "You don't have a gear preset with that name.";
 	}
 	const preset = (userPreset ?? globalPreset) as GearPreset;
+	if (preset.two_handed !== null) {
+		preset.weapon = null;
+		preset.shield = null;
+	}
+
+	// Checks the preset to make sure the user has the required stats for every item in the preset
+	for (const gearItemId of Object.values(preset)) {
+		if (gearItemId !== null) {
+			const itemToEquip = getItem(gearItemId);
+			if (itemToEquip?.equipment?.requirements && !user.hasSkillReqs(itemToEquip.equipment.requirements)) {
+				return `You can't equip this preset because ${
+					itemToEquip.name
+				} requires these stats: ${formatSkillRequirements(itemToEquip.equipment.requirements)}.`;
+			}
+		}
+	}
+
+	const userBankWithEquippedItems = user.bank.clone();
+	for (const e of objectValues(user.gear[gearSetup].raw())) {
+		if (e) userBankWithEquippedItems.add(e.item, Math.max(e.quantity, 1));
+	}
 
 	const toRemove = new Bank();
-	function gearItem(val: null | number) {
-		if (val === null) return null;
-		toRemove.add(val);
+	function gearItem(piece: null | number) {
+		if (piece === null) return null;
+		if (!userBankWithEquippedItems.has(piece) && globalPreset) {
+			for (const similarPiece of getSimilarItems(piece)) {
+				if (userBankWithEquippedItems.has(similarPiece)) {
+					piece = similarPiece;
+					break;
+				}
+			}
+		}
+		toRemove.add(piece);
 		return {
-			item: val,
+			item: piece,
 			quantity: 1
 		};
 	}
@@ -67,12 +99,7 @@ export async function gearPresetEquipCommand(user: MUser, gearSetup: string, pre
 		toRemove.add(preset.ammo, preset.ammo_qty!);
 	}
 
-	const userBankWithEquippedItems = user.bank.clone();
-	for (const e of objectValues(user.gear[gearSetup].raw())) {
-		if (e) userBankWithEquippedItems.add(e.item, Math.max(e.quantity, 1));
-	}
-
-	if (!userBankWithEquippedItems.has(toRemove.bank)) {
+	if (!userBankWithEquippedItems.has(toRemove)) {
 		return `You don't have the items in this preset. You're missing: ${toRemove.remove(user.bank)}.`;
 	}
 
@@ -92,7 +119,7 @@ export async function gearPresetEquipCommand(user: MUser, gearSetup: string, pre
 	};
 }
 
-export async function gearEquipMultiCommand(
+async function gearEquipMultiCommand(
 	user: MUser,
 	interaction: ChatInputCommandInteraction,
 	setup: string,
@@ -206,7 +233,7 @@ export async function gearEquipCommand(args: {
 
 	const result = currentEquippedGear.equip(itemToEquip, quantity);
 
-	await transactItemsFromBank({
+	await transactItems({
 		userID: user.id,
 		collectionLog: false,
 		dontAddToTempCL: true,
@@ -276,7 +303,7 @@ export async function gearUnequipCommand(
 	};
 }
 
-export async function autoEquipCommand(user: MUser, gearSetup: GearSetupType, equipmentType: string): CommandResponse {
+async function autoEquipCommand(user: MUser, gearSetup: GearSetupType, equipmentType: string): CommandResponse {
 	if (gearSetup === 'other' && user.perkTier() < PerkTier.Four) {
 		return PATRON_ONLY_GEAR_SETUP;
 	}
@@ -318,7 +345,7 @@ export async function gearStatsCommand(user: MUser, input: string): CommandRespo
 	const gear = { ...defaultGear };
 	for (const name of input.split(',')) {
 		const item = getItem(name);
-		if (item && item.equipment) {
+		if (item?.equipment) {
 			gear[item.equipment.slot] = { item: item.id, quantity: 1 };
 		}
 	}
@@ -336,12 +363,62 @@ export async function gearViewCommand(user: MUser, input: string, text: boolean)
 							.join('\n')
 					),
 					name: 'gear.txt'
-			  }
+				}
 			: { attachment: await generateAllGearImage(user), name: 'osbot.png' };
 		return {
 			content: 'Here are all your gear setups',
 			files: [file]
 		};
+	}
+	if (stringMatches(input, 'lost on wildy death')) {
+		interface GearLostOptions {
+			gear: GearSetup;
+			skulled: boolean;
+			after20wilderness: boolean;
+			smited: boolean;
+			protectItem: boolean;
+		}
+
+		function showGearLost(options: GearLostOptions) {
+			const results = calculateGearLostOnDeathWilderness(options);
+			return results; // Return the entire results object
+		}
+
+		function calculateAndGetString(options: GearLostOptions, smited: boolean): string {
+			const gearLost = showGearLost({ ...options, smited });
+			return gearLost.lostItems.toString();
+		}
+
+		const userGear = user.gear.wildy;
+		const scenarios = [
+			{ skulled: true, after20wilderness: true, smited: false, protectItem: true },
+			{ skulled: true, after20wilderness: true, smited: true, protectItem: true },
+			{ skulled: false, after20wilderness: true, smited: true, protectItem: true },
+			{ skulled: false, after20wilderness: true, smited: false, protectItem: true },
+			{ skulled: false, after20wilderness: false, smited: true, protectItem: true },
+			{ skulled: false, after20wilderness: false, smited: false, protectItem: true }
+		];
+
+		const scenarioDescriptions = [
+			'when skulled',
+			'when skulled and smited',
+			'in 20+ Wilderness and smited',
+			'in 20+ Wilderness',
+			'in less than 20 Wilderness and smited',
+			'in less than 20 Wilderness'
+		];
+
+		const content = scenarios
+			.map((scenario, index) => {
+				const lostItemsString = calculateAndGetString({ gear: userGear, ...scenario }, scenario.smited);
+				const description = scenarioDescriptions[index];
+				return `The gear you would lose ${description}:\n${lostItemsString}`;
+			})
+			.join('\n\n');
+
+		const updatedContent = `${content}\n\nThese assume you have at least 25 prayer for the protect item prayer.`;
+
+		return { content: updatedContent };
 	}
 	if (!isValidGearSetup(input)) return 'Invalid setup.';
 	const gear = user.gear[input];

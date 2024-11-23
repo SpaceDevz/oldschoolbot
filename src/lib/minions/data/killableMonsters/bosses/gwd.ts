@@ -1,6 +1,7 @@
 import { Time } from 'e';
 import { Monsters } from 'oldschooljs';
 
+import { deepResolveItems, resolveItems } from 'oldschooljs/dist/util/util';
 import {
 	commanderZilyanaCL,
 	generalGraardorCL,
@@ -10,8 +11,7 @@ import {
 import { GearStat } from '../../../../gear/types';
 import { SkillsEnum } from '../../../../skilling/types';
 import itemID from '../../../../util/itemID';
-import resolveItems, { deepResolveItems } from '../../../../util/resolveItems';
-import { KillableMonster } from '../../../types';
+import type { KillableMonster } from '../../../types';
 
 const killableBosses: KillableMonster[] = [
 	{
@@ -25,7 +25,7 @@ const killableBosses: KillableMonster[] = [
 
 		difficultyRating: 7,
 		notifyDrops: resolveItems(['Pet general graardor']),
-		qpRequired: 75,
+		qpRequired: 1,
 		itemInBankBoosts: [
 			{
 				[itemID('Dragon warhammer')]: 10,
@@ -51,8 +51,8 @@ const killableBosses: KillableMonster[] = [
 		healAmountNeeded: 20 * 5,
 		attackStyleToUse: GearStat.AttackSlash,
 		attackStylesUsed: [GearStat.AttackCrush, GearStat.AttackRanged],
-		specialLoot: async (loot, user) => {
-			if (!user.owns('Frozen key') && !user.owns('Frozen key piece (bandos)')) {
+		specialLoot: async ({ loot, ownedItems }) => {
+			if (!ownedItems.has('Frozen key') && !ownedItems.has('Frozen key piece (bandos)')) {
 				loot.add('Frozen key piece (bandos)');
 			}
 		}
@@ -68,7 +68,7 @@ const killableBosses: KillableMonster[] = [
 
 		difficultyRating: 7,
 		notifyDrops: resolveItems(['Pet zilyana']),
-		qpRequired: 75,
+		qpRequired: 1,
 		itemInBankBoosts: [
 			{
 				[itemID('Ranger boots')]: 3,
@@ -107,8 +107,8 @@ const killableBosses: KillableMonster[] = [
 		healAmountNeeded: 18 * 4,
 		attackStyleToUse: GearStat.AttackRanged,
 		attackStylesUsed: [GearStat.AttackRanged, GearStat.AttackMagic],
-		specialLoot: async (loot, user) => {
-			if (!user.owns('Frozen key') && !user.owns('Frozen key piece (saradomin)')) {
+		specialLoot: async ({ loot, ownedItems }) => {
+			if (!ownedItems.has('Frozen key') && !ownedItems.has('Frozen key piece (saradomin)')) {
 				loot.add('Frozen key piece (saradomin)');
 			}
 		}
@@ -124,7 +124,7 @@ const killableBosses: KillableMonster[] = [
 
 		difficultyRating: 7,
 		notifyDrops: resolveItems(["Pet kree'arra"]),
-		qpRequired: 75,
+		qpRequired: 1,
 		itemInBankBoosts: [
 			{
 				[itemID('Armadyl crossbow')]: 5,
@@ -160,8 +160,8 @@ const killableBosses: KillableMonster[] = [
 		healAmountNeeded: 18 * 4,
 		attackStyleToUse: GearStat.AttackRanged,
 		attackStylesUsed: [GearStat.AttackCrush, GearStat.AttackMagic],
-		specialLoot: async (loot, user) => {
-			if (!user.owns('Frozen key') && !user.owns('Frozen key piece (armadyl)')) {
+		specialLoot: async ({ loot, ownedItems }) => {
+			if (!ownedItems.has('Frozen key') && !ownedItems.has('Frozen key piece (armadyl)')) {
 				loot.add('Frozen key piece (armadyl)');
 			}
 		}
@@ -177,7 +177,7 @@ const killableBosses: KillableMonster[] = [
 
 		difficultyRating: 7,
 		notifyDrops: resolveItems(["Pet k'ril tsutsaroth"]),
-		qpRequired: 75,
+		qpRequired: 1,
 		itemInBankBoosts: [
 			{
 				[itemID('Dragon warhammer')]: 10,
@@ -186,7 +186,9 @@ const killableBosses: KillableMonster[] = [
 			},
 			{
 				[itemID('Arclight')]: 9,
-				[itemID('Twisted bow')]: 10
+				[itemID('Twisted bow')]: 10,
+				[itemID('Emberlight')]: 14,
+				[itemID('Scorching bow')]: 20
 			}
 		],
 		groupKillable: true,
@@ -206,8 +208,8 @@ const killableBosses: KillableMonster[] = [
 		healAmountNeeded: 20 * 3,
 		attackStyleToUse: GearStat.AttackSlash,
 		attackStylesUsed: [GearStat.AttackMagic],
-		specialLoot: async (loot, user) => {
-			if (!user.owns('Frozen key') && !user.owns('Frozen key piece (zamorak)')) {
+		specialLoot: async ({ loot, ownedItems }) => {
+			if (!ownedItems.has('Frozen key') && !ownedItems.has('Frozen key piece (zamorak)')) {
 				loot.add('Frozen key piece (zamorak)');
 			}
 		}

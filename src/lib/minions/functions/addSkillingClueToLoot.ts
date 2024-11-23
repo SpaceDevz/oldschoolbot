@@ -1,8 +1,17 @@
-import { sumArr } from 'e';
-import { Bank } from 'oldschooljs';
+import { percentChance, sumArr } from 'e';
+import type { Bank } from 'oldschooljs';
 
-import { birdsNestID, nestTable, strungRabbitFootNestTable } from '../../simulation/birdsNest';
+import { BOT_TYPE } from '../../constants';
+import {
+	birdsNestID,
+	eggNest,
+	nestTable,
+	ringNests,
+	strungRabbitFootNestTable,
+	treeSeedsNest
+} from '../../simulation/birdsNest';
 import { SkillsEnum } from '../../skilling/types';
+import { GearBank } from '../../structures/GearBank';
 import { randFloat, roll } from '../../util';
 import itemID from '../../util/itemID';
 
@@ -14,25 +23,49 @@ const clues = [
 ];
 
 export default function addSkillingClueToLoot(
-	user: MUser,
+	user: MUser | GearBank,
 	skill: SkillsEnum,
 	quantity: number,
 	clueChance: number,
 	loot: Bank,
 	clueNestsOnly?: boolean,
-	strungRabbitFoot?: boolean
+	strungRabbitFoot?: boolean,
+	twitcherSetting?: string,
+	wcCapeNestBoost?: boolean
 ) {
-	const userLevel = user.skillLevel(skill);
-	const chance = Math.floor(clueChance / (100 + userLevel));
-	let nests = 0;
+	const userLevel = user instanceof GearBank ? user.skillsAsLevels[skill] : user.skillLevel(skill);
+	const nestChance = wcCapeNestBoost ? Math.floor(256 * 0.9) : 256;
 	const cluesTotalWeight = sumArr(clues.map(c => c[1]));
+	let chance = Math.floor(clueChance / (100 + userLevel));
+	let nests = 0;
+
+	if (skill === SkillsEnum.Woodcutting && twitcherSetting === 'clue') {
+		chance = Math.floor((clueChance * 0.8) / (100 + userLevel));
+	}
 
 	for (let i = 0; i < quantity; i++) {
-		if (skill === SkillsEnum.Woodcutting && !clueNestsOnly && roll(256)) {
-			if (strungRabbitFoot) {
+		if (skill === SkillsEnum.Woodcutting && !clueNestsOnly && roll(nestChance)) {
+			if (twitcherSetting && percentChance(20)) {
+				switch (twitcherSetting) {
+					case 'egg':
+						loot.add(eggNest.roll());
+						nests++;
+						continue;
+					case 'seed':
+						loot.add(treeSeedsNest.roll());
+						nests++;
+						continue;
+					case 'ring':
+						loot.add(ringNests.roll());
+						nests++;
+						continue;
+				}
+			} else if (strungRabbitFoot) {
 				loot.add(strungRabbitFootNestTable.roll());
+				continue;
 			} else {
 				loot.add(nestTable.roll());
+				continue;
 			}
 		}
 
@@ -42,8 +75,7 @@ export default function addSkillingClueToLoot(
 		let clueRoll = randFloat(0, cluesTotalWeight);
 		for (const clue of clues) {
 			if (clueRoll < clue[1] || nextTier) {
-				//  This if block is ONLY for OSB.
-				if (user.bank.amount(clue[0]) >= 1 || loot.amount(clue[0]) >= 1) {
+				if (BOT_TYPE === 'OSB' && (user.bank.amount(clue[0]) >= 1 || loot.amount(clue[0]) >= 1)) {
 					nextTier = true;
 					continue;
 				}
@@ -58,6 +90,7 @@ export default function addSkillingClueToLoot(
 		}
 		if (!gotClue && roll(1000)) {
 			loot.add('Clue scroll (beginner)');
+			gotClue = true;
 		}
 	}
 	if (skill === SkillsEnum.Woodcutting) {

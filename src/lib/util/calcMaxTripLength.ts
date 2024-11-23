@@ -1,5 +1,5 @@
-import { activity_type_enum } from '@prisma/client';
-import { calcPercentOfNum, calcWhatPercent, Time } from 'e';
+import type { activity_type_enum } from '@prisma/client';
+import { Time, calcPercentOfNum, calcWhatPercent } from 'e';
 
 import { PerkTier } from '../constants';
 import { SkillsEnum } from '../skilling/types';
@@ -33,6 +33,7 @@ export function calcMaxTripLength(user: MUser, activity?: activity_type_enum) {
 		case 'Sepulchre':
 		case 'Raids':
 		case 'TheatreOfBlood':
+		case 'TombsOfAmascut':
 		case 'Pickpocket':
 		case 'SoulWars':
 		case 'Cyclops': {

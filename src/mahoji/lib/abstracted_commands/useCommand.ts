@@ -1,6 +1,5 @@
 import { notEmpty } from 'e';
-import { Bank } from 'oldschooljs';
-import { Item } from 'oldschooljs/dist/meta/types';
+import { Bank, type Item } from 'oldschooljs';
 
 import { BitField } from '../../../lib/constants';
 import { assert } from '../../../lib/util';
@@ -11,7 +10,7 @@ interface Usable {
 	items: Item[];
 	run: (user: MUser) => Promise<string>;
 }
-export const usables: Usable[] = [];
+const usables: Usable[] = [];
 
 interface UsableUnlock {
 	item: Item;
@@ -138,7 +137,7 @@ export async function useCommand(user: MUser, _firstItem: string, _secondItem?: 
 	for (const i of items) checkBank.add(i.id);
 	if (!bank.has(checkBank)) return `You don't own ${checkBank}.`;
 
-	const usable = usables.find(i => i.items.length === items.length && items.every(t => i.items.includes(t)));
-	if (!usable) return "That's not a usable item.";
+	const usable = usables.find(i => i.items.length === items.length && i.items.every(t => items.includes(t)));
+	if (!usable) return `That's not a usable ${items.length === 1 ? 'item' : 'combination'}.`;
 	return usable.run(user);
 }

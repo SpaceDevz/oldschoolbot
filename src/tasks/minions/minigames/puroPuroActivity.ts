@@ -1,16 +1,16 @@
-import { randInt, reduceNumByPercent, roll, Time } from 'e';
+import { Time, randInt, reduceNumByPercent, roll } from 'e';
 import { Bank } from 'oldschooljs';
 import { SkillsEnum } from 'oldschooljs/dist/constants';
 
 import {
 	implings,
 	puroImpHighTierTable,
-	puroImplings,
 	puroImpNormalTable,
-	puroImpSpellTable
+	puroImpSpellTable,
+	puroImplings
 } from '../../../lib/implings';
 import { incrementMinigameScore } from '../../../lib/settings/minigames';
-import { PuroPuroActivityTaskOptions } from '../../../lib/types/minions';
+import type { PuroPuroActivityTaskOptions } from '../../../lib/types/minions';
 import { handleTripFinish } from '../../../lib/util/handleTripFinish';
 import itemID from '../../../lib/util/itemID';
 import { userHasGracefulEquipped, userStatsBankUpdate } from '../../../mahoji/mahojiSettings';
@@ -35,7 +35,7 @@ export const puroPuroTask: MinionTask = {
 		const missed = new Bank();
 		const itemCost = new Bank();
 		let hunterXP = 0;
-		let hunterLevel = user.skillLevel(SkillsEnum.Hunter);
+		const hunterLevel = user.skillLevel(SkillsEnum.Hunter);
 		const allImpQty = hunt(minutes, user, 1, 3);
 		const highTierImpQty = hunt(minutes, user, 0.75, 1) * (darkLure ? 1.2 : 1);
 		const singleImpQty = hunt(minutes, user, 5, 6);
@@ -94,11 +94,17 @@ export const puroPuroTask: MinionTask = {
 		}
 
 		let str = `<@${userID}>, ${user.minionName} finished hunting in Puro-Puro. `;
-		const xpStr = await user.addXP({ skillName: SkillsEnum.Hunter, amount: hunterXP, source: 'PuroPuro' });
-		const hunterXpHr = `${Math.round(
-			(hunterXP / (data.duration / Time.Minute)) * 60
-		).toLocaleString()} Hunter XP/Hr`;
-		str += `\n${xpStr}. You are getting ${hunterXpHr}.`;
+
+		const xpStr = await user.addXP({
+			skillName: SkillsEnum.Hunter,
+			amount: hunterXP,
+			duration: data.duration,
+			source: 'PuroPuro'
+		});
+
+		if (hunterXP > 0) {
+			str += `\n${xpStr}.`;
+		}
 
 		if (darkLure) {
 			const spellsUsed = bank.items().reduce((prev, curr) => {
@@ -121,11 +127,15 @@ export const puroPuroTask: MinionTask = {
 			const saved = savedRunes > 0 ? `\nYour Bryophyta's staff saved you ${savedRunes} Nature runes.` : '';
 			let magicXP = 0;
 			magicXP += spellsUsed * 60;
-			const magicXpStr = await user.addXP({ skillName: SkillsEnum.Magic, amount: magicXP, source: 'PuroPuro' });
-			const magicXpHr = `${Math.round(
-				(magicXP / (data.duration / Time.Minute)) * 60
-			).toLocaleString()} Magic XP/Hr`;
-			if (magicXP > 0) str += `\n${magicXpStr}. You are getting ${magicXpHr}.`;
+
+			const magicXpStr = await user.addXP({
+				skillName: SkillsEnum.Magic,
+				amount: magicXP,
+				duration: data.duration,
+				source: 'PuroPuro'
+			});
+
+			if (magicXP > 0) str += `\n${magicXpStr}.`;
 			if (implingTier === 2) {
 				str += `\n**Boosts:** Due to using Dark Lure, you are catching 20% more implings. You used: ${itemCost}. ${saved}`;
 			} else {
@@ -154,7 +164,7 @@ export const puroPuroTask: MinionTask = {
 			itemsToRemove: itemCost
 		});
 
-		userStatsBankUpdate(user.id, 'puropuro_implings_bank', bank);
+		userStatsBankUpdate(user, 'puropuro_implings_bank', bank);
 
 		handleTripFinish(user, channelID, str, undefined, data, bank);
 	}

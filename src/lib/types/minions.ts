@@ -1,12 +1,14 @@
 import type { CropUpgradeType } from '@prisma/client';
 
-import { NMZStrategy, UnderwaterAgilityThievingTrainingSkill } from '../constants';
+import type { ItemBank } from '.';
+import type { NMZStrategy, TwitcherGloves, UnderwaterAgilityThievingTrainingSkill } from '../constants';
+import type { SlayerActivityConstants } from '../minions/data/combatConstants';
 import type { IPatchData } from '../minions/farming/types';
+import type { AttackStyles } from '../minions/functions';
 import type { MinigameName } from '../settings/minigames';
-import { RaidLevel } from '../simulation/toa';
+import type { RaidLevel } from '../simulation/toa';
 import type { Peak } from '../tickers';
 import type { BirdhouseData } from './../skilling/skills/hunter/defaultBirdHouseTrap';
-import type { ItemBank } from '.';
 
 export interface ActivityTaskOptions {
 	userID: string;
@@ -26,6 +28,7 @@ export interface ActivityTaskOptionsWithNoChanges extends ActivityTaskOptions {
 		| 'BarbarianAssault'
 		| 'AgilityArena'
 		| 'ChampionsChallenge'
+		| 'MyNotes'
 		| 'AerialFishing'
 		| 'DriftNet'
 		| 'SoulWars'
@@ -45,7 +48,8 @@ export interface ActivityTaskOptionsWithNoChanges extends ActivityTaskOptions {
 		| 'Easter'
 		| 'ShootingStars'
 		| 'HalloweenEvent'
-		| 'StrongholdOfSecurity';
+		| 'StrongholdOfSecurity'
+		| 'CombatRing';
 }
 
 export interface ActivityTaskOptionsWithQuantity extends ActivityTaskOptions {
@@ -57,8 +61,14 @@ export interface ActivityTaskOptionsWithQuantity extends ActivityTaskOptions {
 		| 'WealthCharging'
 		| 'GloryCharging'
 		| 'AerialFishing'
-		| 'FishingTrawler';
+		| 'FishingTrawler'
+		| 'CamdozaalFishing'
+		| 'CamdozaalMining'
+		| 'CamdozaalSmithing'
+		| 'MyNotes';
 	quantity: number;
+	// iQty is 'input quantity.' This is the number specified at command time, so we can accurately repeat such trips.
+	iQty?: number;
 }
 
 export interface ShootingStarsOptions extends ActivityTaskOptions {
@@ -68,7 +78,7 @@ export interface ShootingStarsOptions extends ActivityTaskOptions {
 	totalXp: number;
 	lootItems: ItemBank;
 }
-export interface ActivityTaskOptionsWithUsers extends ActivityTaskOptions {
+interface ActivityTaskOptionsWithUsers extends ActivityTaskOptions {
 	users: string[];
 }
 
@@ -92,6 +102,13 @@ export interface DarkAltarOptions extends ActivityTaskOptions {
 	quantity: number;
 	hasElite: boolean;
 	rune: 'blood' | 'soul';
+}
+
+export interface OuraniaAltarOptions extends ActivityTaskOptions {
+	type: 'OuraniaAltar';
+	quantity: number;
+	stamina: boolean;
+	daeyalt: boolean;
 }
 
 export interface AgilityActivityTaskOptions extends ActivityTaskOptions {
@@ -118,38 +135,34 @@ export interface ConstructionActivityTaskOptions extends ActivityTaskOptions {
 
 export interface MonsterActivityTaskOptions extends ActivityTaskOptions {
 	type: 'MonsterKilling';
-	monsterID: number;
-	quantity: number;
+	mi: number;
+	q: number;
+	iQty?: number;
 	usingCannon?: boolean;
 	cannonMulti?: boolean;
 	chinning?: boolean;
-	burstOrBarrage?: number;
+	bob?: SlayerActivityConstants.IceBarrage | SlayerActivityConstants.IceBurst;
 	died?: boolean;
 	pkEncounters?: number;
 	hasWildySupplies?: boolean;
+	isInWilderness?: boolean;
+	attackStyles?: AttackStyles[];
 }
 
-export interface RevenantOptions extends ActivityTaskOptions {
-	type: 'Revenants';
-	monsterID: number;
-	quantity: number;
-	died: boolean;
-	fakeDuration: number;
-	usingPrayerPots: boolean;
-	skulled: boolean;
-	style: 'melee' | 'range' | 'mage';
-}
 export interface ClueActivityTaskOptions extends ActivityTaskOptions {
 	type: 'ClueCompletion';
-
-	clueID: number;
-	quantity: number;
+	ci: number;
+	q: number;
+	implingID?: number;
+	implingClues?: number;
 }
 
 export interface FishingActivityTaskOptions extends ActivityTaskOptions {
 	type: 'Fishing';
 	fishID: number;
 	quantity: number;
+	flakesQuantity?: number;
+	iQty?: number;
 }
 
 export interface MiningActivityTaskOptions extends ActivityTaskOptions {
@@ -159,6 +172,7 @@ export interface MiningActivityTaskOptions extends ActivityTaskOptions {
 	oreID: number;
 	quantity: number;
 	powermine: boolean;
+	iQty?: number;
 }
 
 export interface MotherlodeMiningActivityTaskOptions extends ActivityTaskOptions {
@@ -166,6 +180,7 @@ export interface MotherlodeMiningActivityTaskOptions extends ActivityTaskOptions
 	fakeDurationMax: number;
 	fakeDurationMin: number;
 	quantity: number;
+	iQty?: number;
 }
 
 export interface SmeltingActivityTaskOptions extends ActivityTaskOptions {
@@ -192,8 +207,11 @@ export interface WoodcuttingActivityTaskOptions extends ActivityTaskOptions {
 	fakeDurationMax: number;
 	fakeDurationMin: number;
 	powerchopping: boolean;
+	forestry?: boolean;
+	twitchers?: TwitcherGloves;
 	logID: number;
 	quantity: number;
+	iQty?: number;
 }
 
 export interface CraftingActivityTaskOptions extends ActivityTaskOptions {
@@ -257,6 +275,13 @@ export interface HerbloreActivityTaskOptions extends ActivityTaskOptions {
 	mixableID: number;
 	quantity: number;
 	zahur: boolean;
+	wesley: boolean;
+}
+
+export interface CreateForestersRationsActivityTaskOptions extends ActivityTaskOptions {
+	type: 'CreateForestersRations';
+	rationName: string;
+	quantity: number;
 }
 
 export interface CutLeapingFishActivityTaskOptions extends ActivityTaskOptions {
@@ -427,6 +452,8 @@ export interface RaidsOptions extends ActivityTaskOptionsWithUsers {
 	leader: string;
 	users: string[];
 	challengeMode: boolean;
+	isFakeMass: boolean;
+	maxSizeInput?: number;
 	quantity?: number;
 }
 
@@ -442,11 +469,22 @@ export interface TheatreOfBloodTaskOptions extends ActivityTaskOptionsWithUsers 
 	solo?: boolean;
 }
 
+export interface ColoTaskOptions extends ActivityTaskOptions {
+	type: 'Colosseum';
+	fakeDuration: number;
+	diedAt?: number;
+	loot?: ItemBank;
+	maxGlory: number;
+	scytheCharges: number;
+	venatorBowCharges: number;
+	bloodFuryCharges: number;
+}
+
 type UserID = string;
 type Points = number;
 type RoomIDsDiedAt = number[];
 
-export type TOAUser = [UserID, Points[], RoomIDsDiedAt[]];
+type TOAUser = [UserID, Points[], RoomIDsDiedAt[]];
 export interface TOAOptions extends ActivityTaskOptionsWithUsers {
 	type: 'TombsOfAmascut';
 	leader: string;
@@ -574,13 +612,13 @@ export type ActivityTaskData =
 	| MiningActivityTaskOptions
 	| MotherlodeMiningActivityTaskOptions
 	| PlunderActivityTaskOptions
-	| RevenantOptions
 	| SmithingActivityTaskOptions
 	| SmeltingActivityTaskOptions
 	| TiaraRunecraftActivityTaskOptions
 	| ClueActivityTaskOptions
 	| AlchingActivityTaskOptions
 	| DarkAltarOptions
+	| OuraniaAltarOptions
 	| GroupMonsterActivityTaskOptions
 	| MahoganyHomesActivityTaskOptions
 	| NightmareActivityTaskOptions
@@ -594,4 +632,6 @@ export type ActivityTaskData =
 	| FightCavesActivityTaskOptions
 	| ActivityTaskOptionsWithQuantity
 	| MinigameActivityTaskOptionsWithNoChanges
-	| CutLeapingFishActivityTaskOptions;
+	| CutLeapingFishActivityTaskOptions
+	| CreateForestersRationsActivityTaskOptions
+	| ColoTaskOptions;

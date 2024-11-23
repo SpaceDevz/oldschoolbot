@@ -1,17 +1,19 @@
+import type { CommandRunOptions } from '@oldschoolgg/toolkit/util';
+import { ApplicationCommandOptionType } from 'discord.js';
 import { Time } from 'e';
-import { ApplicationCommandOptionType, CommandRunOptions } from 'mahoji';
 import { Bank } from 'oldschooljs';
 
 import { KourendKebosDiary, userhasDiaryTier } from '../../lib/diaries';
-import { Favours, gotFavour } from '../../lib/minions/data/kourendFavour';
 import Cooking, { Cookables } from '../../lib/skilling/skills/cooking/cooking';
+import ForestryRations from '../../lib/skilling/skills/cooking/forestersRations';
 import LeapingFish from '../../lib/skilling/skills/cooking/leapingFish';
-import { CookingActivityTaskOptions } from '../../lib/types/minions';
+import type { CookingActivityTaskOptions } from '../../lib/types/minions';
 import { formatDuration, itemID, stringMatches } from '../../lib/util';
 import addSubTaskToActivityTask from '../../lib/util/addSubTaskToActivityTask';
 import { calcMaxTripLength } from '../../lib/util/calcMaxTripLength';
 import { cutLeapingFishCommand } from '../lib/abstracted_commands/cutLeapingFishCommand';
-import { OSBMahojiCommand } from '../lib/util';
+import { forestersRationCommand } from '../lib/abstracted_commands/forestersRationCommand';
+import type { OSBMahojiCommand } from '../lib/util';
 
 export const cookCommand: OSBMahojiCommand = {
 	name: 'cook',
@@ -28,7 +30,11 @@ export const cookCommand: OSBMahojiCommand = {
 			description: 'The thing you want to cook.',
 			required: true,
 			autocomplete: async (value: string) => {
-				return [...Cookables.map(i => i.name), ...LeapingFish.map(i => i.item.name)]
+				return [
+					...Cookables.map(i => i.name),
+					...LeapingFish.map(i => i.item.name),
+					...ForestryRations.map(i => i.name)
+				]
 					.filter(name => (!value ? true : name.toLowerCase().includes(value.toLowerCase())))
 					.map(i => ({
 						name: i,
@@ -59,6 +65,15 @@ export const cookCommand: OSBMahojiCommand = {
 			return cutLeapingFishCommand({ user, channelID, name, quantity });
 		}
 
+		const forestryFood = ForestryRations.find(
+			foresterRation =>
+				stringMatches(foresterRation.name, name) || stringMatches(foresterRation.name.split(' ')[0], name)
+		);
+
+		if (forestryFood) {
+			return forestersRationCommand({ user, channelID, name, quantity });
+		}
+
 		const cookable = Cooking.Cookables.find(
 			cookable =>
 				stringMatches(cookable.name, options.name) ||
@@ -77,10 +92,10 @@ export const cookCommand: OSBMahojiCommand = {
 
 		// These are just for notifying the user, they only take effect in the Activity.
 		const boosts = [];
+		const [hasEasyDiary] = await userhasDiaryTier(user, KourendKebosDiary.easy);
 		const [hasEliteDiary] = await userhasDiaryTier(user, KourendKebosDiary.elite);
-		const [hasFavour] = gotFavour(user, Favours.Hosidius, 100);
-		if (hasFavour) boosts.push('Using Hosidius Range');
-		if (hasFavour && hasEliteDiary) boosts.push('Kourend Elite Diary');
+		if (hasEasyDiary) boosts.push('Using Hosidius Range');
+		if (hasEasyDiary && hasEliteDiary) boosts.push('Kourend Elite Diary');
 		const hasGaunts = user.hasEquipped('Cooking gauntlets');
 		if (hasGaunts) boosts.push('Cooking gauntlets equipped');
 

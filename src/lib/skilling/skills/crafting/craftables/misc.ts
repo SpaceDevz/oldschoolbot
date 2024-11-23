@@ -1,7 +1,7 @@
 import { Bank } from 'oldschooljs';
 
 import itemID from '../../../../util/itemID';
-import { Craftable } from '../../../types';
+import type { Craftable } from '../../../types';
 
 const Misc: Craftable[] = [
 	{
@@ -244,6 +244,30 @@ const Misc: Craftable[] = [
 		level: 37,
 		xp: 4,
 		inputItems: new Bank().add('Ball of wool').add('Rabbit foot'),
+		tickRate: 2
+	},
+	{
+		name: 'Amulet of rancour',
+		id: itemID('Amulet of rancour'),
+		level: 86,
+		xp: 500,
+		inputItems: new Bank().add('Amulet of torture').add('Araxyte fang'),
+		tickRate: 0
+	},
+	{
+		name: 'Crab helmet',
+		id: itemID('Crab helmet'),
+		level: 15,
+		xp: 32.5,
+		inputItems: new Bank().add('Fresh crab shell'),
+		tickRate: 2
+	},
+	{
+		name: 'Crab claw',
+		id: itemID('Crab claw'),
+		level: 15,
+		xp: 32.5,
+		inputItems: new Bank().add('Fresh crab claw'),
 		tickRate: 2
 	}
 ];

@@ -4,9 +4,10 @@ import { randomVariation } from 'oldschooljs/dist/util';
 import { determineMiningTime } from '../../../lib/skilling/functions/determineMiningTime';
 import { pickaxes } from '../../../lib/skilling/functions/miningBoosts';
 import Mining from '../../../lib/skilling/skills/mining';
-import { MotherlodeMiningActivityTaskOptions } from '../../../lib/types/minions';
+import type { MotherlodeMiningActivityTaskOptions } from '../../../lib/types/minions';
 import { formatDuration, itemNameFromID } from '../../../lib/util';
 import addSubTaskToActivityTask from '../../../lib/util/addSubTaskToActivityTask';
+import { calcMaxTripLength } from '../../../lib/util/calcMaxTripLength';
 import { minionName } from '../../../lib/util/minionUtils';
 
 export async function motherlodeMineCommand({
@@ -54,24 +55,25 @@ export async function motherlodeMineCommand({
 		);
 	}
 
-	const glovesRate = 0;
+	const glovesEffect = 0;
 	const armourEffect = 0;
 	const miningCapeEffect = 0;
 	const goldSilverBoost = false;
 	const powermine = false;
 
 	// Calculate the time it takes to mine specific quantity or as many as possible
-	let [duration, newQuantity] = determineMiningTime({
+	const [duration, newQuantity] = determineMiningTime({
 		quantity,
-		user,
+		gearBank: user.gearBank,
 		ore: motherlode,
 		ticksBetweenRolls: currentPickaxe.ticksBetweenRolls,
-		glovesRate,
+		glovesEffect,
 		armourEffect,
 		miningCapeEffect,
 		powermining: powermine,
 		goldSilverBoost,
-		miningLvl: miningLevel
+		miningLvl: miningLevel,
+		maxTripLength: calcMaxTripLength(user, 'MotherlodeMining')
 	});
 
 	const fakeDurationMin = quantity ? randomVariation(reduceNumByPercent(duration, 25), 20) : duration;
@@ -81,6 +83,7 @@ export async function motherlodeMineCommand({
 		userID: user.id,
 		channelID,
 		quantity: newQuantity,
+		iQty: quantity ? quantity : undefined,
 		duration,
 		fakeDurationMax,
 		fakeDurationMin,

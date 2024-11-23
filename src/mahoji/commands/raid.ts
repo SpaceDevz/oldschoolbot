@@ -1,11 +1,13 @@
-import { ApplicationCommandOptionType, CommandRunOptions } from 'mahoji';
+import type { CommandRunOptions } from '@oldschoolgg/toolkit/util';
+import { ApplicationCommandOptionType } from 'discord.js';
 
-import { mileStoneBaseDeathChances, RaidLevel, toaHelpCommand, toaStartCommand } from '../../lib/simulation/toa';
+import type { RaidLevel } from '../../lib/simulation/toa';
+import { mileStoneBaseDeathChances, toaHelpCommand, toaStartCommand } from '../../lib/simulation/toa';
 import { deferInteraction } from '../../lib/util/interactionReply';
 import { minionIsBusy } from '../../lib/util/minionIsBusy';
-import { coxCommand, coxStatsCommand } from '../lib/abstracted_commands/coxCommand';
+import { coxBoostsCommand, coxCommand, coxStatsCommand } from '../lib/abstracted_commands/coxCommand';
 import { tobCheckCommand, tobStartCommand, tobStatsCommand } from '../lib/abstracted_commands/tobCommand';
-import { OSBMahojiCommand } from '../lib/util';
+import type { OSBMahojiCommand } from '../lib/util';
 
 export const raidCommand: OSBMahojiCommand = {
 	name: 'raid',
@@ -27,8 +29,8 @@ export const raidCommand: OSBMahojiCommand = {
 						{
 							type: ApplicationCommandOptionType.String,
 							name: 'type',
-							description: 'Choose whether you want to solo or mass.',
-							choices: ['solo', 'mass'].map(i => ({ name: i, value: i })),
+							description: 'Choose whether you want to solo, mass, or fake mass.',
+							choices: ['solo', 'mass', 'fakemass'].map(i => ({ name: i, value: i })),
 							required: true
 						},
 						{
@@ -36,6 +38,20 @@ export const raidCommand: OSBMahojiCommand = {
 							name: 'challenge_mode',
 							description: 'Choose whether you want to do Challenge Mode.',
 							required: false
+						},
+						{
+							type: ApplicationCommandOptionType.Integer,
+							name: 'max_team_size',
+							description: 'Choose a max size for your team.',
+							required: false
+						},
+						{
+							type: ApplicationCommandOptionType.Integer,
+							name: 'quantity',
+							description: 'The quantity to do.',
+							required: false,
+							min_value: 1,
+							max_value: 10
 						}
 					]
 				},
@@ -43,6 +59,11 @@ export const raidCommand: OSBMahojiCommand = {
 					type: ApplicationCommandOptionType.Subcommand,
 					name: 'stats',
 					description: 'Check your CoX stats.'
+				},
+				{
+					type: ApplicationCommandOptionType.Subcommand,
+					name: 'itemboosts',
+					description: 'Check your CoX item boosts.'
 				}
 			]
 		},
@@ -119,7 +140,10 @@ export const raidCommand: OSBMahojiCommand = {
 							name: 'raid_level',
 							description: 'Choose the raid level you want to do (1-600).',
 							required: true,
-							choices: mileStoneBaseDeathChances.map(i => ({ name: i.level.toString(), value: i.level }))
+							choices: mileStoneBaseDeathChances.map(i => ({
+								name: i.level.toString(),
+								value: i.level
+							}))
 						},
 						{
 							type: ApplicationCommandOptionType.Boolean,
@@ -159,7 +183,16 @@ export const raidCommand: OSBMahojiCommand = {
 		userID,
 		channelID
 	}: CommandRunOptions<{
-		cox?: { start?: { type: 'solo' | 'mass'; challenge_mode?: boolean; quantity?: number }; stats?: {} };
+		cox?: {
+			start?: {
+				type: 'solo' | 'mass' | 'fakemass';
+				challenge_mode?: boolean;
+				max_team_size?: number;
+				quantity?: number;
+			};
+			stats?: {};
+			itemboosts?: {};
+		};
 		tob?: {
 			start?: { solo?: boolean; hard_mode?: boolean; max_team_size?: number; quantity?: number };
 			stats?: {};
@@ -174,14 +207,22 @@ export const raidCommand: OSBMahojiCommand = {
 		const user = await mUserFetch(userID);
 		const { cox, tob } = options;
 		if (cox?.stats) return coxStatsCommand(user);
+		if (cox?.itemboosts) return coxBoostsCommand(user);
 		if (tob?.stats) return tobStatsCommand(user);
 		if (tob?.check) return tobCheckCommand(user, Boolean(tob.check.hard_mode));
 		if (options.toa?.help) return toaHelpCommand(user, channelID);
 
 		if (minionIsBusy(user.id)) return "Your minion is busy, you can't do this.";
 
-		if (cox && cox.start) {
-			return coxCommand(channelID, user, cox.start.type, Boolean(cox.start.challenge_mode), cox.start.quantity);
+		if (cox?.start) {
+			return coxCommand(
+				channelID,
+				user,
+				cox.start.type,
+				cox.start.max_team_size,
+				Boolean(cox.start.challenge_mode),
+				cox.start.quantity
+			);
 		}
 		if (tob?.start) {
 			return tobStartCommand(

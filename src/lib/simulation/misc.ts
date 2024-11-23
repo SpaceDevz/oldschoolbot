@@ -1,18 +1,19 @@
 import { LootTable } from 'oldschooljs';
+import { itemTupleToTable } from '../util';
 
 export const CrystalChestTable = new LootTable()
 	.add(
-		[
+		itemTupleToTable([
 			['Uncut dragonstone', 1],
 			['Spinach roll', 1],
 			['Coins', 2000]
-		],
+		]),
 		1,
 		1
 	)
 	.add('Uncut dragonstone', 1)
 	.add(
-		[
+		itemTupleToTable([
 			['Uncut dragonstone', 1],
 			['Air rune', 50],
 			['Water rune', 50],
@@ -25,79 +26,86 @@ export const CrystalChestTable = new LootTable()
 			['Cosmic rune', 10],
 			['Nature rune', 10],
 			['Law rune', 10]
-		],
+		]),
 		1,
 		1
 	)
 	.add(
-		[
+		itemTupleToTable([
 			['Uncut dragonstone', 1],
 			['Ruby', 2],
 			['Diamond', 2]
-		],
+		]),
 		1,
 		1
 	)
 	.add(
-		[
+		itemTupleToTable([
 			['Uncut dragonstone', 1],
 			['Runite bar', 3]
-		],
+		]),
 		1,
 		1
 	)
 	.add(
-		[
+		itemTupleToTable([
 			['Uncut dragonstone', 1],
 			['Iron ore', 150]
-		],
+		]),
 		1,
 		1
 	)
 	.add(
-		[
+		itemTupleToTable([
 			['Uncut dragonstone', 1],
 			['Coal', 100]
-		],
+		]),
 		1,
 		1
 	)
 	.add(
-		[
+		itemTupleToTable([
 			['Uncut dragonstone', 1],
 			['Raw swordfish', 5],
 			['Coins', 1000]
-		],
+		]),
 		1,
 		1
 	)
 	.add(
-		[
+		itemTupleToTable([
 			['Uncut dragonstone', 1],
 			['Tooth half of key', 1],
 			['Coins', 750]
-		],
+		]),
 		1,
 		1
 	)
 	.add(
-		[
+		itemTupleToTable([
 			['Uncut dragonstone', 1],
 			['Loop half of key', 1],
 			['Coins', 750]
-		],
+		]),
 		1,
 		1
 	)
 	.add(
-		[
+		itemTupleToTable([
 			['Uncut dragonstone', 1],
 			['Adamant sq shield', 1]
-		],
+		]),
 		1,
 		1
 	)
-	.add([['Uncut dragonstone'], ['Rune platelegs']], 1, 1);
+	.add(
+		itemTupleToTable([
+			['Uncut dragonstone', 1],
+			['Rune platelegs', 1]
+		]),
+		1,
+		1
+	);
 
 export const CasketTable = new LootTable()
 	.add('Coins', 160, 24)
@@ -160,7 +168,7 @@ export const NestBoxesTable = new LootTable()
 	.add('Nest box (ring)', 1, 5)
 	.add('Nest box (empty)', 1, 3);
 
-export const BaseGemBagTable = new LootTable()
+const BaseGemBagTable = new LootTable()
 	.add('Uncut sapphire', 1, 4993)
 	.add('Uncut emerald', 1, 3468)
 	.add('Uncut ruby', 1, 1180)

@@ -1,21 +1,20 @@
-import { type Bingo, Prisma } from '@prisma/client';
+import type { Bingo, Prisma } from '@prisma/client';
 import { ButtonBuilder, ButtonStyle, userMention } from 'discord.js';
-import { chunk, noOp, Time } from 'e';
-import { groupBy } from 'lodash';
-import { Bank } from 'oldschooljs';
+import { Time, chunk, noOp } from 'e';
+import groupBy from 'lodash/groupBy';
+import { Bank, addBanks } from 'oldschooljs';
 import { toKMB } from 'oldschooljs/dist/util';
-import ss from 'simple-statistics';
+import * as ss from 'simple-statistics';
 
 import { Emoji } from '../../../lib/constants';
-import { prisma } from '../../../lib/settings/prisma';
-import { ItemBank } from '../../../lib/types';
+import type { ItemBank } from '../../../lib/types';
 import getOSItem from '../../../lib/util/getOSItem';
-import { addBanks } from '../../../lib/util/smallUtils';
 import { sendToChannelID } from '../../../lib/util/webhook';
-import { generateTileName, isGlobalTile, rowsForSquare, StoredBingoTile, UniversalBingoTile } from './bingoUtil';
+import type { StoredBingoTile, UniversalBingoTile } from './bingoUtil';
+import { generateTileName, isGlobalTile, rowsForSquare } from './bingoUtil';
 import { globalBingoTiles } from './globalTiles';
 
-const BingoTrophies = [
+export const BingoTrophies = [
 	{
 		item: getOSItem('Comp. dragon trophy'),
 		percentile: 5,
@@ -76,6 +75,7 @@ export class BingoManager {
 	wasFinalized: boolean;
 	extraGP: number;
 	isGlobal: boolean;
+	trophiesApply: boolean;
 
 	constructor(options: Bingo) {
 		this.ticketPrice = Number(options.ticket_price);
@@ -92,6 +92,8 @@ export class BingoManager {
 		this.wasFinalized = options.was_finalized;
 		this.extraGP = Number(options.extra_gp);
 		this.isGlobal = options.is_global;
+
+		this.trophiesApply = options.trophies_apply;
 
 		this.bingoTiles = this.rawBingoTiles.map(tile => {
 			if (isGlobalTile(tile)) {
@@ -163,6 +165,8 @@ export class BingoManager {
 				completed = tile.oneOf.some(id => cl.has([id]));
 			} else if ('allOf' in tile) {
 				completed = tile.allOf.every(id => cl.has(id));
+			} else if ('bank' in tile) {
+				completed = cl.has(tile.bank);
 			} else {
 				completed = tile.customReq(cl);
 			}
@@ -245,16 +249,18 @@ export class BingoManager {
 					...this.determineProgressOfBank(participant.cl as ItemBank)
 				}))
 				.sort((a, b) => b.tilesCompletedCount - a.tilesCompletedCount),
-			teams: teams.map(team => ({
+			teams: teams.map((team, index) => ({
 				...team,
 				trophy: this.isGlobal
-					? BingoTrophies.filter(
+					? (BingoTrophies.filter(
 							t =>
+								index < 3 ||
 								team.tilesCompletedCount >= t.guaranteedAt ||
 								100 - t.percentile <=
 									ss.quantileRank(tilesCompletedCounts, team.tilesCompletedCount) * 100
-					  )[0] ?? null
-					: null
+						)[0] ?? null)
+					: null,
+				rank: index + 1
 			}))
 		};
 	}
@@ -289,7 +295,7 @@ ${teams
 		if (!bingoParticipant) return;
 		const beforeTeamProgress = await this.determineProgressOfTeam(bingoParticipant.bingo_team_id);
 		const beforeUserProgress = this.determineProgressOfBank(bingoParticipant.cl);
-		const newCL = addBanks([bingoParticipant.cl as ItemBank, itemsAdded.bank]);
+		const newCL = new Bank(bingoParticipant.cl as ItemBank).add(itemsAdded);
 		await prisma.bingoParticipant.update({
 			where: {
 				user_id_bingo_id: {
@@ -298,7 +304,7 @@ ${teams
 				}
 			},
 			data: {
-				cl: newCL.bank
+				cl: newCL.toJSON()
 			}
 		});
 		const afterUserProgress = this.determineProgressOfBank(newCL);

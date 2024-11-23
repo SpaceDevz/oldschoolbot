@@ -2,9 +2,9 @@ import { Time } from 'e';
 import { Bank, Monsters } from 'oldschooljs';
 import { itemID } from 'oldschooljs/dist/util';
 
+import { deepResolveItems, resolveItems } from 'oldschooljs/dist/util/util';
 import { GearStat } from '../../../gear/types';
-import resolveItems, { deepResolveItems } from '../../../util/resolveItems';
-import { KillableMonster } from '../../types';
+import type { KillableMonster } from '../../types';
 
 export const vannakaMonsters: KillableMonster[] = [
 	{
@@ -37,7 +37,7 @@ export const vannakaMonsters: KillableMonster[] = [
 		timeToFinish: Time.Second * 29,
 		table: Monsters.AbyssalDemon,
 
-		wildy: false,
+		wildy: true,
 
 		difficultyRating: 3,
 		notifyDrops: resolveItems(['Abyssal head', 'Abyssal dagger']),
@@ -49,7 +49,8 @@ export const vannakaMonsters: KillableMonster[] = [
 		superior: Monsters.GreaterAbyssalDemon,
 		itemInBankBoosts: [
 			{
-				[itemID('Arclight')]: 10
+				[itemID('Arclight')]: 10,
+				[itemID('Emberlight')]: 15
 			},
 			{
 				[itemID('Saradomin godsword')]: 5
@@ -58,7 +59,11 @@ export const vannakaMonsters: KillableMonster[] = [
 		healAmountNeeded: 35,
 		attackStyleToUse: GearStat.AttackSlash,
 		attackStylesUsed: [GearStat.AttackStab],
-		canBarrage: true
+		canBarrage: true,
+		pkActivityRating: 7,
+		pkBaseDeathChance: 10,
+		revsWeaponBoost: true,
+		wildySlayerCave: true
 	},
 	{
 		id: Monsters.AbyssalSire.id,
@@ -85,7 +90,8 @@ export const vannakaMonsters: KillableMonster[] = [
 		itemInBankBoosts: [
 			{
 				[itemID('Arclight')]: 10,
-				[itemID("Osmumten's fang")]: 12
+				[itemID("Osmumten's fang")]: 12,
+				[itemID('Emberlight')]: 15
 			},
 			{
 				[itemID('Bandos godsword')]: 5,
@@ -113,12 +119,10 @@ export const vannakaMonsters: KillableMonster[] = [
 		attackStylesUsed: [GearStat.AttackCrush],
 		canCannon: true,
 		canBarrage: true,
-		itemInBankBoosts: [
-			{
-				[itemID('Kodai wand')]: 12,
-				[itemID('Staff of the dead')]: 8
-			}
-		]
+		pkActivityRating: 4,
+		pkBaseDeathChance: 3,
+		revsWeaponBoost: true,
+		wildySlayerCave: true
 	},
 	{
 		id: Monsters.BabyBlueDragon.id,
@@ -207,7 +211,7 @@ export const vannakaMonsters: KillableMonster[] = [
 		timeToFinish: Time.Second * 27,
 		table: Monsters.Bloodveld,
 
-		wildy: false,
+		wildy: true,
 
 		difficultyRating: 1,
 		qpRequired: 0,
@@ -217,13 +221,28 @@ export const vannakaMonsters: KillableMonster[] = [
 		superior: Monsters.InsatiableBloodveld,
 		itemInBankBoosts: [
 			{
-				[itemID('Arclight')]: 15
+				[itemID('Arclight')]: 15,
+				[itemID('Emberlight')]: 20
+			}
+		],
+		degradeableItemUsage: [
+			{
+				required: false,
+				gearSetup: 'range',
+				items: [
+					{
+						itemID: itemID('Venator bow'),
+						boostPercent: 10
+					}
+				]
 			}
 		],
 		healAmountNeeded: 12,
 		attackStyleToUse: GearStat.AttackRanged,
 		attackStylesUsed: [GearStat.AttackMagic],
-		canCannon: true
+		pkActivityRating: 4,
+		pkBaseDeathChance: 6,
+		revsWeaponBoost: true
 	},
 	{
 		id: Monsters.BlueDragon.id,
@@ -350,6 +369,18 @@ export const vannakaMonsters: KillableMonster[] = [
 				[itemID('Dragonbone necklace')]: 2
 			}
 		],
+		degradeableItemUsage: [
+			{
+				required: false,
+				gearSetup: 'range',
+				items: [
+					{
+						itemID: itemID('Venator bow'),
+						boostPercent: 10
+					}
+				]
+			}
+		],
 		healAmountNeeded: 9,
 		attackStyleToUse: GearStat.AttackSlash,
 		attackStylesUsed: [GearStat.AttackSlash, GearStat.AttackRanged],
@@ -414,7 +445,7 @@ export const vannakaMonsters: KillableMonster[] = [
 		timeToFinish: Time.Second * 18,
 		table: Monsters.DustDevil,
 
-		wildy: false,
+		wildy: true,
 
 		difficultyRating: 2,
 		existsInCatacombs: true,
@@ -424,18 +455,16 @@ export const vannakaMonsters: KillableMonster[] = [
 			slayer: 65
 		},
 		superior: Monsters.ChokeDevil,
-		itemInBankBoosts: [
-			{
-				[itemID('Kodai wand')]: 15,
-				[itemID('Staff of the dead')]: 10
-			}
-		],
 		canCannon: true,
 		cannonMulti: false,
 		canBarrage: true,
 		healAmountNeeded: 16,
 		attackStyleToUse: GearStat.AttackSlash,
-		attackStylesUsed: [GearStat.AttackCrush]
+		attackStylesUsed: [GearStat.AttackCrush],
+		pkActivityRating: 6,
+		pkBaseDeathChance: 8,
+		revsWeaponBoost: true,
+		wildySlayerCave: true
 	},
 	{
 		id: Monsters.ElfArcher.id,
@@ -507,7 +536,10 @@ export const vannakaMonsters: KillableMonster[] = [
 		healAmountNeeded: 17,
 		attackStyleToUse: GearStat.AttackSlash,
 		attackStylesUsed: [GearStat.AttackSlash],
-		canCannon: true
+		canCannon: true,
+		pkActivityRating: 3,
+		pkBaseDeathChance: 8,
+		revsWeaponBoost: true
 	},
 	{
 		id: Monsters.Gargoyle.id,
@@ -568,6 +600,18 @@ export const vannakaMonsters: KillableMonster[] = [
 				[itemID('Masori mask (f)')]: 1
 			}
 		],
+		degradeableItemUsage: [
+			{
+				required: false,
+				gearSetup: 'range',
+				items: [
+					{
+						itemID: itemID('Venator bow'),
+						boostPercent: 5
+					}
+				]
+			}
+		],
 		healAmountNeeded: 20 * 12,
 		attackStyleToUse: GearStat.AttackSlash,
 		attackStylesUsed: [GearStat.AttackSlash, GearStat.AttackRanged, GearStat.AttackMagic],
@@ -580,15 +624,14 @@ export const vannakaMonsters: KillableMonster[] = [
 		timeToFinish: Time.Second * 37.2,
 		table: Monsters.GreaterNechryael,
 
-		wildy: false,
+		wildy: true,
 
 		difficultyRating: 5,
 		qpRequired: 0,
 		itemInBankBoosts: [
 			{
 				[itemID('Arclight')]: 10,
-				[itemID('Staff of the dead')]: 15,
-				[itemID('Kodai wand')]: 20
+				[itemID('Emberlight')]: 15
 			}
 		],
 		existsInCatacombs: true,
@@ -600,7 +643,11 @@ export const vannakaMonsters: KillableMonster[] = [
 		attackStyleToUse: GearStat.AttackSlash,
 		attackStylesUsed: [GearStat.AttackCrush],
 		canBarrage: true,
-		canCannon: true
+		canCannon: true,
+		pkActivityRating: 8,
+		pkBaseDeathChance: 9,
+		revsWeaponBoost: true,
+		wildySlayerCave: true
 	},
 	{
 		id: Monsters.GreenDragon.id,
@@ -617,7 +664,11 @@ export const vannakaMonsters: KillableMonster[] = [
 		healAmountNeeded: 20,
 		attackStyleToUse: GearStat.AttackSlash,
 		attackStylesUsed: [GearStat.AttackSlash],
-		canCannon: true
+		canCannon: true,
+		revsWeaponBoost: true,
+		wildySlayerCave: true,
+		pkActivityRating: 2,
+		pkBaseDeathChance: 4
 	},
 	{
 		id: Monsters.HarpieBugSwarm.id,
@@ -645,7 +696,7 @@ export const vannakaMonsters: KillableMonster[] = [
 		timeToFinish: Time.Second * 39,
 		table: Monsters.Hellhound,
 
-		wildy: false,
+		wildy: true,
 
 		existsInCatacombs: true,
 		difficultyRating: 3,
@@ -656,13 +707,18 @@ export const vannakaMonsters: KillableMonster[] = [
 		attackStylesUsed: [GearStat.AttackStab],
 		itemInBankBoosts: [
 			{
-				[itemID('Arclight')]: 15
+				[itemID('Arclight')]: 15,
+				[itemID('Emberlight')]: 20
 			}
 		],
 		canCannon: true,
 		// Not multi but you can safespot for the same effect
 		cannonMulti: true,
-		canBarrage: false
+		canBarrage: false,
+		pkActivityRating: 5,
+		pkBaseDeathChance: 8,
+		revsWeaponBoost: true,
+		wildySlayerCave: true
 	},
 	{
 		id: Monsters.IceGiant.id,
@@ -679,8 +735,12 @@ export const vannakaMonsters: KillableMonster[] = [
 		attackStyleToUse: GearStat.AttackSlash,
 		attackStylesUsed: [GearStat.AttackSlash],
 		canCannon: true,
-		cannonMulti: false,
-		canBarrage: false
+		cannonMulti: true,
+		canBarrage: false,
+		pkActivityRating: 2,
+		pkBaseDeathChance: 6,
+		revsWeaponBoost: true,
+		wildySlayerCave: true
 	},
 	{
 		id: Monsters.IceTroll.id,
@@ -762,7 +822,7 @@ export const vannakaMonsters: KillableMonster[] = [
 		timeToFinish: Time.Second * 25,
 		table: Monsters.Jelly,
 
-		wildy: false,
+		wildy: true,
 
 		difficultyRating: 2,
 		qpRequired: 0,
@@ -772,7 +832,11 @@ export const vannakaMonsters: KillableMonster[] = [
 		superior: Monsters.VitreousJelly,
 		healAmountNeeded: 14,
 		attackStyleToUse: GearStat.AttackRanged,
-		attackStylesUsed: [GearStat.AttackMagic]
+		attackStylesUsed: [GearStat.AttackMagic],
+		pkActivityRating: 6,
+		pkBaseDeathChance: 8,
+		revsWeaponBoost: true,
+		wildySlayerCave: true
 	},
 	{
 		id: Monsters.JungleHorror.id,
@@ -827,7 +891,8 @@ export const vannakaMonsters: KillableMonster[] = [
 		difficultyRating: 2,
 		itemInBankBoosts: [
 			{
-				[itemID('Arclight')]: 12
+				[itemID('Arclight')]: 12,
+				[itemID('Emberlight')]: 17
 			},
 			{
 				[itemID('Saradomin godsword')]: 3
@@ -840,7 +905,11 @@ export const vannakaMonsters: KillableMonster[] = [
 		canCannon: true,
 		// No multi spots (i think) but you can safespot for same effect.
 		cannonMulti: true,
-		canBarrage: false
+		canBarrage: false,
+		pkActivityRating: 7,
+		pkBaseDeathChance: 9,
+		revsWeaponBoost: true,
+		wildySlayerCave: true
 	},
 	{
 		id: Monsters.Molanisk.id,
@@ -875,7 +944,10 @@ export const vannakaMonsters: KillableMonster[] = [
 		healAmountNeeded: 17,
 		attackStyleToUse: GearStat.AttackSlash,
 		attackStylesUsed: [GearStat.AttackSlash],
-		canCannon: true
+		canCannon: true,
+		pkActivityRating: 4,
+		pkBaseDeathChance: 3,
+		revsWeaponBoost: true
 	},
 	{
 		id: Monsters.Bryophyta.id,
@@ -943,7 +1015,20 @@ export const vannakaMonsters: KillableMonster[] = [
 		},
 		itemInBankBoosts: [
 			{
-				[itemID('Arclight')]: 15
+				[itemID('Arclight')]: 15,
+				[itemID('Emberlight')]: 20
+			}
+		],
+		degradeableItemUsage: [
+			{
+				required: false,
+				gearSetup: 'range',
+				items: [
+					{
+						itemID: itemID('Venator bow'),
+						boostPercent: 10
+					}
+				]
 			}
 		],
 		superior: Monsters.InsatiableMutatedBloodveld,
@@ -966,7 +1051,8 @@ export const vannakaMonsters: KillableMonster[] = [
 		qpRequired: 0,
 		itemInBankBoosts: [
 			{
-				[itemID('Arclight')]: 10
+				[itemID('Arclight')]: 10,
+				[itemID('Emberlight')]: 15
 			}
 		],
 		levelRequirements: {
@@ -1100,7 +1186,7 @@ export const vannakaMonsters: KillableMonster[] = [
 		timeToFinish: Time.Second * 15,
 		table: Monsters.SpiritualMage,
 
-		wildy: false,
+		wildy: true,
 
 		difficultyRating: 4,
 		qpRequired: 0,
@@ -1109,7 +1195,10 @@ export const vannakaMonsters: KillableMonster[] = [
 		},
 		healAmountNeeded: 27,
 		attackStyleToUse: GearStat.AttackRanged,
-		attackStylesUsed: [GearStat.AttackMagic]
+		attackStylesUsed: [GearStat.AttackMagic],
+		pkActivityRating: 4,
+		pkBaseDeathChance: 6,
+		revsWeaponBoost: true
 	},
 	{
 		id: Monsters.SpiritualRanger.id,
@@ -1118,7 +1207,7 @@ export const vannakaMonsters: KillableMonster[] = [
 		timeToFinish: Time.Second * 18,
 		table: Monsters.SpiritualRanger,
 
-		wildy: false,
+		wildy: true,
 
 		difficultyRating: 3,
 		qpRequired: 0,
@@ -1127,7 +1216,10 @@ export const vannakaMonsters: KillableMonster[] = [
 		},
 		healAmountNeeded: 25,
 		attackStyleToUse: GearStat.AttackSlash,
-		attackStylesUsed: [GearStat.AttackRanged]
+		attackStylesUsed: [GearStat.AttackRanged],
+		pkActivityRating: 4,
+		pkBaseDeathChance: 6,
+		revsWeaponBoost: true
 	},
 	{
 		id: Monsters.SpiritualWarrior.id,
@@ -1136,7 +1228,7 @@ export const vannakaMonsters: KillableMonster[] = [
 		timeToFinish: Time.Second * 19,
 		table: Monsters.SpiritualWarrior,
 
-		wildy: false,
+		wildy: true,
 
 		difficultyRating: 3,
 		qpRequired: 0,
@@ -1145,7 +1237,10 @@ export const vannakaMonsters: KillableMonster[] = [
 		},
 		healAmountNeeded: 26,
 		attackStyleToUse: GearStat.AttackSlash,
-		attackStylesUsed: [GearStat.AttackSlash]
+		attackStylesUsed: [GearStat.AttackSlash],
+		pkActivityRating: 4,
+		pkBaseDeathChance: 6,
+		revsWeaponBoost: true
 	},
 	{
 		id: Monsters.TerrorDog.id,

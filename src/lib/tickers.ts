@@ -1,21 +1,20 @@
-import { EmbedBuilder } from '@discordjs/builders';
-import { Activity } from '@prisma/client';
-import { ActionRowBuilder, ButtonBuilder, ButtonStyle, TextChannel } from 'discord.js';
-import { noOp, randInt, shuffleArr, Time } from 'e';
+import type { TextChannel } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
+import { Time, noOp, randInt, removeFromArr, shuffleArr } from 'e';
 
+import { TimerManager } from '@sapphire/timer-manager';
 import { production } from '../config';
 import { userStatsUpdate } from '../mahoji/mahojiSettings';
-import { BitField, Channel, informationalButtons, PeakTier } from './constants';
-import { GrandExchange } from './grandExchange';
-import { cacheGEPrices } from './marketPrices';
-import { collectMetrics } from './metrics';
 import { mahojiUserSettingsUpdate } from './MUser';
-import { prisma, queryCountStore } from './settings/prisma';
+import { processPendingActivities } from './Task';
+import { BitField, Channel, PeakTier } from './constants';
+import { GrandExchange } from './grandExchange';
+import { collectMetrics } from './metrics';
 import { runCommand } from './settings/settings';
+import { informationalButtons } from './sharedComponents';
 import { getFarmingInfo } from './skilling/functions/getFarmingInfo';
 import Farming from './skilling/skills/farming';
-import { completeActivity } from './Task';
-import { awaitMessageComponentInteraction, getSupportGuild, stringMatches } from './util';
+import { awaitMessageComponentInteraction, getSupportGuild, makeComponents, stringMatches } from './util';
 import { farmingPatchNames, getFarmingKeyFromName } from './util/farmingHelpers';
 import { handleGiveawayCompletion } from './util/giveaway';
 import { logError } from './util/logError';
@@ -70,9 +69,16 @@ export interface Peak {
 /**
  * Tickers should idempotent, and be able to run at any time.
  */
-export const tickers: { name: string; interval: number; timer: NodeJS.Timeout | null; cb: () => Promise<unknown> }[] = [
+export const tickers: {
+	name: string;
+	startupWait?: number;
+	interval: number;
+	timer: NodeJS.Timeout | null;
+	cb: () => Promise<unknown>;
+}[] = [
 	{
 		name: 'giveaways',
+		startupWait: Time.Second * 30,
 		interval: Time.Second * 10,
 		timer: null,
 		cb: async () => {
@@ -93,14 +99,11 @@ export const tickers: { name: string; interval: number; timer: NodeJS.Timeout | 
 		timer: null,
 		interval: Time.Minute,
 		cb: async () => {
-			let storedCount = queryCountStore.value;
-			queryCountStore.value = 0;
 			const data = {
 				timestamp: Math.floor(Date.now() / 1000),
-				...(await collectMetrics()),
-				qps: storedCount / 60
+				...(await collectMetrics())
 			};
-			if (isNaN(data.eventLoopDelayMean)) {
+			if (Number.isNaN(data.eventLoopDelayMean)) {
 				data.eventLoopDelayMean = 0;
 			}
 			await prisma.metric.create({
@@ -110,37 +113,17 @@ export const tickers: { name: string; interval: number; timer: NodeJS.Timeout | 
 	},
 	{
 		name: 'minion_activities',
+		startupWait: Time.Second * 10,
 		timer: null,
-		interval: Time.Second * 5,
+		interval: production ? Time.Second * 5 : 500,
 		cb: async () => {
-			const activities: Activity[] = await prisma.activity.findMany({
-				where: {
-					completed: false,
-					finish_date: production
-						? {
-								lt: new Date()
-						  }
-						: undefined
-				}
-			});
-
-			await prisma.activity.updateMany({
-				where: {
-					id: {
-						in: activities.map(i => i.id)
-					}
-				},
-				data: {
-					completed: true
-				}
-			});
-
-			await Promise.all(activities.map(completeActivity));
+			await processPendingActivities();
 		}
 	},
 	{
 		name: 'daily_reminders',
 		interval: Time.Minute * 3,
+		startupWait: Time.Minute,
 		timer: null,
 		cb: async () => {
 			const result = await prisma.$queryRawUnsafe<{ id: string; last_daily_timestamp: bigint }[]>(
@@ -151,6 +134,13 @@ JOIN user_stats ON users.id::bigint = user_stats.user_id
 WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_timestamp" != -1 AND to_timestamp(user_stats."last_daily_timestamp" / 1000) < now() - INTERVAL '12 hours';
 `
 			);
+			const dailyDMButton = new ButtonBuilder()
+				.setCustomId('CLAIM_DAILY')
+				.setLabel('Claim Daily')
+				.setEmoji('493286312854683654')
+				.setStyle(ButtonStyle.Secondary);
+			const components = [dailyDMButton];
+			const str = 'Your daily is ready!';
 
 			for (const row of result.values()) {
 				if (!production) continue;
@@ -164,7 +154,7 @@ WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_t
 					{}
 				);
 				const user = await globalClient.fetchUser(row.id);
-				await user.send('Your daily is ready!').catch(noOp);
+				await user.send({ content: str, components: makeComponents(components) }).catch(noOp);
 			}
 		}
 	},
@@ -179,7 +169,7 @@ WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_t
 
 			// Divide the current day into interverals
 			for (let i = 0; i <= 10; i++) {
-				let randomedTime = randInt(1, 2);
+				const randomedTime = randInt(1, 2);
 				const [peakTier] = shuffleArr(peakTiers);
 				const peak: Peak = {
 					startTime: randomedTime,
@@ -202,7 +192,7 @@ WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_t
 
 			let currentTime = new Date().getTime();
 
-			for (let peak of peakInterval) {
+			for (const peak of peakInterval) {
 				peak.startTime = currentTime;
 				currentTime += peak.finishTime * Time.Hour;
 				peak.finishTime = currentTime;
@@ -213,11 +203,12 @@ WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_t
 	},
 	{
 		name: 'farming_reminder_ticker',
+		startupWait: Time.Minute,
 		interval: Time.Minute * 3.5,
 		timer: null,
 		cb: async () => {
 			if (!production) return;
-			let basePlantTime = 1_626_556_507_451;
+			const basePlantTime = 1_626_556_507_451;
 			const now = Date.now();
 			const users = await prisma.user.findMany({
 				where: {
@@ -227,17 +218,17 @@ WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_t
 							BitField.IsPatronTier4,
 							BitField.IsPatronTier5,
 							BitField.IsPatronTier6,
-							BitField.isContributor,
 							BitField.isModerator
 						]
-					},
-					farming_patch_reminders: true
+					}
 				},
 				select: {
-					id: true
+					id: true,
+					bitfield: true
 				}
 			});
-			for (const { id } of users) {
+			for (const { id, bitfield } of users) {
+				if (bitfield.includes(BitField.DisabledFarmingReminders)) continue;
 				const { patches } = await getFarmingInfo(id);
 				for (const patchType of farmingPatchNames) {
 					const patch = patches[patchType];
@@ -246,12 +237,12 @@ WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_t
 
 					const storeHarvestablePlant = patch.lastPlanted;
 					const planted = storeHarvestablePlant
-						? Farming.Plants.find(plants => stringMatches(plants.name, storeHarvestablePlant)) ??
-						  Farming.Plants.find(
+						? (Farming.Plants.find(plants => stringMatches(plants.name, storeHarvestablePlant)) ??
+							Farming.Plants.find(
 								plants =>
 									stringMatches(plants.name, storeHarvestablePlant) ||
 									stringMatches(plants.name.split(' ')[0], storeHarvestablePlant)
-						  )
+							))
 						: null;
 					const difference = now - patch.plantTime;
 					if (!planted) continue;
@@ -282,7 +273,7 @@ WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_t
 					if (!user) continue;
 					const message = await user
 						.send({
-							content: `The ${planted.name} planted in your ${patchType} patches is ready to be harvested!`,
+							content: `The ${planted.name} planted in your ${patchType} patches are ready to be harvested!`,
 							components: [farmingReminderButtons]
 						})
 						.catch(noOp);
@@ -299,7 +290,7 @@ WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_t
 						// Check disable first so minion doesn't have to be free to disable reminders.
 						if (selection.customId === 'DISABLE') {
 							await mahojiUserSettingsUpdate(user.id, {
-								farming_patch_reminders: false
+								bitfield: removeFromArr(bitfield, BitField.DisabledFarmingReminders)
 							});
 							await user.send('Farming patch reminders have been disabled.');
 							return;
@@ -318,7 +309,8 @@ WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_t
 								guildID: undefined,
 								user: await mUserFetch(user.id),
 								member: message.member,
-								interaction: selection
+								interaction: selection,
+								continueDeltaMillis: selection.createdAt.getTime() - message.createdAt.getTime()
 							});
 						}
 					} catch {
@@ -331,6 +323,7 @@ WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_t
 	{
 		name: 'support_channel_messages',
 		timer: null,
+		startupWait: Time.Second * 22,
 		interval: Time.Minute * 20,
 		cb: async () => {
 			if (!production) return;
@@ -338,7 +331,7 @@ WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_t
 			const channel = guild?.channels.cache.get(Channel.HelpAndSupport) as TextChannel | undefined;
 			if (!channel) return;
 			const messages = await channel.messages.fetch({ limit: 5 });
-			if (messages.some(m => m.author.id === globalClient.user!.id)) return;
+			if (messages.some(m => m.author.id === globalClient.user?.id)) return;
 			if (lastMessageID) {
 				const message = await channel.messages.fetch(lastMessageID).catch(noOp);
 				if (message) {
@@ -354,6 +347,7 @@ WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_t
 	},
 	{
 		name: 'ge_channel_messages',
+		startupWait: Time.Second * 19,
 		timer: null,
 		interval: Time.Minute * 20,
 		cb: async () => {
@@ -362,7 +356,7 @@ WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_t
 			const channel = guild?.channels.cache.get(Channel.GrandExchange) as TextChannel | undefined;
 			if (!channel) return;
 			const messages = await channel.messages.fetch({ limit: 5 });
-			if (messages.some(m => m.author.id === globalClient.user!.id)) return;
+			if (messages.some(m => m.author.id === globalClient.user?.id)) return;
 			if (lastMessageGEID) {
 				const message = await channel.messages.fetch(lastMessageGEID).catch(noOp);
 				if (message) {
@@ -375,19 +369,11 @@ WHERE bitfield && '{2,3,4,5,6,7,8,12,21,24}'::int[] AND user_stats."last_daily_t
 	},
 	{
 		name: 'ge_ticker',
+		startupWait: Time.Second * 30,
 		timer: null,
-		interval: Time.Second * 3,
+		interval: Time.Second * 10,
 		cb: async () => {
 			await GrandExchange.tick();
-		}
-	},
-	{
-		name: 'Cache g.e prices and validate',
-		timer: null,
-		interval: Time.Hour * 4,
-		cb: async () => {
-			await cacheGEPrices();
-			await GrandExchange.extensiveVerification();
 		}
 	}
 ];
@@ -403,9 +389,12 @@ export function initTickers() {
 				logError(err);
 				debugLog(`${ticker.name} ticker errored`, { type: 'TICKER' });
 			} finally {
-				ticker.timer = setTimeout(fn, ticker.interval);
+				if (ticker.timer) TimerManager.clearTimeout(ticker.timer);
+				ticker.timer = TimerManager.setTimeout(fn, ticker.interval);
 			}
 		};
-		fn();
+		ticker.timer = TimerManager.setTimeout(() => {
+			fn();
+		}, ticker.startupWait ?? 1);
 	}
 }

@@ -1,28 +1,28 @@
+import { execSync } from 'node:child_process';
 import path from 'node:path';
-
-import { execSync } from 'child_process';
-import { APIButtonComponent, ButtonBuilder, ButtonStyle, ComponentType } from 'discord.js';
+import { isMainThread } from 'node:worker_threads';
+import { type CommandOptions, PerkTier, StoreBitfield, dateFm } from '@oldschoolgg/toolkit/util';
 import * as dotenv from 'dotenv';
-import { CommandOptions } from 'mahoji/dist/lib/types';
+import { getItemOrThrow, resolveItems } from 'oldschooljs';
 import { z } from 'zod';
 
 import { DISCORD_SETTINGS, production } from '../config';
 import type { AbstractCommand } from '../mahoji/lib/inhibitors';
 import { SkillsEnum } from './skilling/types';
 import type { ActivityTaskData } from './types/minions';
-import getOSItem from './util/getOSItem';
-import resolveItems from './util/resolveItems';
-import { dateFm } from './util/smallUtils';
+import type { CanvasImage } from './util/canvasUtil';
 
-export const BotID = DISCORD_SETTINGS.BotID ?? '303730326692429825';
+export { PerkTier };
 
 const TestingMainChannelID = DISCORD_SETTINGS.Channels?.TestingMain ?? '940760643525570591';
 
 export const BOT_TYPE: 'BSO' | 'OSB' = 'OSB' as 'BSO' | 'OSB';
+export const BOT_TYPE_LOWERCASE: 'bso' | 'osb' = BOT_TYPE.toLowerCase() as 'bso' | 'osb';
 
 export const Channel = {
 	General: DISCORD_SETTINGS.Channels?.General ?? '342983479501389826',
-	Notifications: production ? '469523207691436042' : '1042760447830536212',
+	Notifications:
+		DISCORD_SETTINGS.Channels?.Notifications ?? (production ? '469523207691436042' : '1042760447830536212'),
 	GrandExchange: DISCORD_SETTINGS.Channels?.GrandExchange ?? '682996313209831435',
 	Developers: DISCORD_SETTINGS.Channels?.Developers ?? '648196527294251020',
 	BlacklistLogs: DISCORD_SETTINGS.Channels?.BlacklistLogs ?? '782459317218967602',
@@ -37,10 +37,10 @@ export const Channel = {
 		BOT_TYPE === 'OSB'
 			? production
 				? '346304390858145792'
-				: '940760643525570591'
+				: '1154056119019393035'
 			: production
-			? '792691343284764693'
-			: '940760643525570591'
+				? '792691343284764693'
+				: '1154056119019393035'
 };
 
 export const Roles = {
@@ -63,10 +63,11 @@ export const Roles = {
 	TopMinigamer: DISCORD_SETTINGS.Roles?.TopMinigamer ?? '832798997033779220',
 	TopClueHunter: DISCORD_SETTINGS.Roles?.TopClueHunter ?? '839135887467610123',
 	TopSlayer: DISCORD_SETTINGS.Roles?.TopSlayer ?? '856080958247010324',
+	TopFarmer: DISCORD_SETTINGS.Roles?.TopFarmer ?? '894194027363205150',
 	TopGlobalCL: '1072426869028294747'
 };
 
-export const enum Emoji {
+export enum Emoji {
 	MoneyBag = '<:MoneyBag:493286312854683654>',
 	OSBot = '<:OSBot:601768469905801226>',
 	Joy = '😂',
@@ -175,7 +176,7 @@ export enum ActivityGroup {
 	Minigame = 'Minigame'
 }
 
-export const enum Events {
+export enum Events {
 	Error = 'error',
 	Log = 'log',
 	Verbose = 'verbose',
@@ -188,37 +189,6 @@ export const enum Events {
 
 export const COINS_ID = 995;
 
-export const enum PerkTier {
-	/**
-	 * Boosters
-	 */
-	One = 1,
-	/**
-	 * Tier 1 Patron
-	 */
-	Two = 2,
-	/**
-	 * Tier 2 Patron, Contributors, Mods
-	 */
-	Three = 3,
-	/**
-	 * Tier 3 Patron
-	 */
-	Four = 4,
-	/**
-	 * Tier 4 Patron
-	 */
-	Five = 5,
-	/**
-	 * Tier 5 Patron
-	 */
-	Six = 6,
-	/**
-	 * Tier 6 Patron
-	 */
-	Seven = 7
-}
-
 export enum BitField {
 	IsPatronTier1 = 2,
 	IsPatronTier2 = 3,
@@ -226,7 +196,6 @@ export enum BitField {
 	IsPatronTier4 = 5,
 	IsPatronTier5 = 6,
 	isModerator = 7,
-	isContributor = 8,
 	BypassAgeRestriction = 9,
 	HasHosidiusWallkit = 10,
 	HasPermanentEventBackgrounds = 11,
@@ -237,7 +206,6 @@ export enum BitField {
 	HasDexScroll = 16,
 	HasArcaneScroll = 17,
 	HasTornPrayerScroll = 18,
-	IsWikiContributor = 19,
 	HasSlepeyTablet = 20,
 	IsPatronTier6 = 21,
 	DisableBirdhouseRunButton = 22,
@@ -255,7 +223,12 @@ export enum BitField {
 	UsedStrangledTablet = 33,
 	UsedFrozenTablet = 34,
 	CleanHerbsFarming = 35,
-	SelfGamblingLocked = 36
+	SelfGamblingLocked = 36,
+	DisabledFarmingReminders = 37,
+	DisableClueButtons = 38,
+	DisableAutoSlayButton = 39,
+	DisableHighPeakTimeWarning = 40,
+	DisableOpenableNames = 41
 }
 
 interface BitFieldData {
@@ -268,9 +241,7 @@ interface BitFieldData {
 }
 
 export const BitFieldData: Record<BitField, BitFieldData> = {
-	[BitField.IsWikiContributor]: { name: 'Wiki Contributor', protected: true, userConfigurable: false },
 	[BitField.isModerator]: { name: 'Moderator', protected: true, userConfigurable: false },
-	[BitField.isContributor]: { name: 'Contributor', protected: true, userConfigurable: false },
 
 	[BitField.HasPermanentTierOne]: { name: 'Permanent Tier 1', protected: false, userConfigurable: false },
 	[BitField.IsPatronTier1]: { name: 'Tier 1 Patron', protected: false, userConfigurable: false },
@@ -330,17 +301,33 @@ export const BitFieldData: Record<BitField, BitFieldData> = {
 		name: 'Clean herbs during farm runs',
 		protected: false,
 		userConfigurable: true
+	},
+	[BitField.DisabledFarmingReminders]: {
+		name: 'Disable Farming Reminders',
+		protected: false,
+		userConfigurable: true
+	},
+	[BitField.DisableClueButtons]: {
+		name: 'Disable Clue Buttons',
+		protected: false,
+		userConfigurable: true
+	},
+	[BitField.DisableAutoSlayButton]: {
+		name: 'Disable Auto Slay Button',
+		protected: false,
+		userConfigurable: true
+	},
+	[BitField.DisableHighPeakTimeWarning]: {
+		name: 'Disable Wilderness High Peak Time Warning',
+		protected: false,
+		userConfigurable: true
+	},
+	[BitField.DisableOpenableNames]: {
+		name: 'Disable Names On Open',
+		protected: false,
+		userConfigurable: true
 	}
 } as const;
-
-export const enum PatronTierID {
-	One = '4608201',
-	Two = '4608226',
-	Three = '4720356',
-	Four = '5262065',
-	Five = '5262216',
-	Six = '8091554'
-}
 
 export const BadgesEnum = {
 	Developer: 0,
@@ -355,7 +342,11 @@ export const BadgesEnum = {
 	TopSkiller: 9,
 	TopCollector: 10,
 	TopMinigame: 11,
-	SotWTrophy: 12
+	SotWTrophy: 12,
+	Slayer: 13,
+	TopGiveawayer: 14,
+	Farmer: 15,
+	Hacktoberfest: 16
 } as const;
 
 export const badges: { [key: number]: string } = {
@@ -371,7 +362,11 @@ export const badges: { [key: number]: string } = {
 	[BadgesEnum.TopSkiller]: Emoji.Skiller,
 	[BadgesEnum.TopCollector]: Emoji.CollectionLog,
 	[BadgesEnum.TopMinigame]: Emoji.MinigameIcon,
-	[BadgesEnum.SotWTrophy]: Emoji.SOTWTrophy
+	[BadgesEnum.SotWTrophy]: Emoji.SOTWTrophy,
+	[BadgesEnum.Slayer]: Emoji.Slayer,
+	[BadgesEnum.TopGiveawayer]: Emoji.SantaHat,
+	[BadgesEnum.Farmer]: Emoji.Farming,
+	[BadgesEnum.Hacktoberfest]: '<:hacktoberfest:1304259875634942082>'
 };
 
 export const MAX_XP = 200_000_000;
@@ -392,40 +387,6 @@ export const LEVEL_99_XP = 13_034_431;
 export const MAX_LEVEL = 99;
 export const MAX_TOTAL_LEVEL = Object.values(SkillsEnum).length * MAX_LEVEL;
 export const SILENT_ERROR = 'SILENT_ERROR';
-
-const buttonSource = [
-	{
-		label: 'Wiki',
-		emoji: '802136964027121684',
-		url: 'https://wiki.oldschool.gg/'
-	},
-	{
-		label: 'Patreon',
-		emoji: '679334888792391703',
-		url: 'https://www.patreon.com/oldschoolbot'
-	},
-	{
-		label: 'Support Server',
-		emoji: '778418736180494347',
-		url: 'https://www.discord.gg/ob'
-	},
-	{
-		label: 'Bot Invite',
-		emoji: '778418736180494347',
-		url: 'http://www.oldschool.gg/invite/osb'
-	}
-];
-
-export const informationalButtons = buttonSource.map(i =>
-	new ButtonBuilder().setLabel(i.label).setEmoji(i.emoji).setURL(i.url).setStyle(ButtonStyle.Link)
-);
-export const mahojiInformationalButtons: APIButtonComponent[] = buttonSource.map(i => ({
-	type: ComponentType.Button,
-	label: i.label,
-	emoji: { id: i.emoji },
-	style: ButtonStyle.Link,
-	url: i.url
-}));
 
 export const PATRON_ONLY_GEAR_SETUP =
 	'Sorry - but the `other` gear setup is only available for Tier 3 Patrons (and higher) to use.';
@@ -462,7 +423,7 @@ export const projectiles = {
 export type ProjectileType = keyof typeof projectiles;
 
 export const PHOSANI_NIGHTMARE_ID = 9416;
-export const COMMANDS_TO_NOT_TRACK = [['minion', ['k', 'kill', 'clue', 'info']]];
+const COMMANDS_TO_NOT_TRACK = [['minion', ['k', 'kill', 'clue', 'info']]];
 export function shouldTrackCommand(command: AbstractCommand, args: CommandOptions) {
 	if (!Array.isArray(args)) return true;
 	for (const [name, subs] of COMMANDS_TO_NOT_TRACK) {
@@ -483,34 +444,32 @@ export type NMZStrategy = (typeof NMZ_STRATEGY)[number];
 export const UNDERWATER_AGILITY_THIEVING_TRAINING_SKILL = ['agility', 'thieving', 'agility+thieving'] as const;
 export type UnderwaterAgilityThievingTrainingSkill = (typeof UNDERWATER_AGILITY_THIEVING_TRAINING_SKILL)[number];
 
+export const TWITCHERS_GLOVES = ['egg', 'ring', 'seed', 'clue'] as const;
+export type TwitcherGloves = (typeof TWITCHERS_GLOVES)[number];
+
 export const busyImmuneCommands = ['admin', 'rp'];
-export const usernameCache = new Map<string, string>();
-export const badgesCache = new Map<string, string>();
-export const minionBuyButton = new ButtonBuilder()
-	.setCustomId('BUY_MINION')
-	.setLabel('Buy Minion')
-	.setStyle(ButtonStyle.Success);
+
 export const FormattedCustomEmoji = /<a?:\w{2,32}:\d{17,20}>/;
 
 export const chompyHats = [
-	[getOSItem('Chompy bird hat (ogre bowman)'), 30],
-	[getOSItem('Chompy bird hat (bowman)'), 40],
-	[getOSItem('Chompy bird hat (ogre yeoman)'), 50],
-	[getOSItem('Chompy bird hat (yeoman)'), 70],
-	[getOSItem('Chompy bird hat (ogre marksman)'), 95],
-	[getOSItem('Chompy bird hat (marksman)'), 125],
-	[getOSItem('Chompy bird hat (ogre woodsman)'), 170],
-	[getOSItem('Chompy bird hat (woodsman)'), 225],
-	[getOSItem('Chompy bird hat (ogre forester)'), 300],
-	[getOSItem('Chompy bird hat (forester)'), 400],
-	[getOSItem('Chompy bird hat (ogre bowmaster)'), 550],
-	[getOSItem('Chompy bird hat (bowmaster)'), 700],
-	[getOSItem('Chompy bird hat (ogre expert)'), 1000],
-	[getOSItem('Chompy bird hat (expert)'), 1300],
-	[getOSItem('Chompy bird hat (ogre dragon archer)'), 1700],
-	[getOSItem('Chompy bird hat (dragon archer)'), 2250],
-	[getOSItem('Chompy bird hat (expert ogre dragon archer)'), 3000],
-	[getOSItem('Chompy bird hat (expert dragon archer)'), 4000]
+	[getItemOrThrow('Chompy bird hat (ogre bowman)'), 30],
+	[getItemOrThrow('Chompy bird hat (bowman)'), 40],
+	[getItemOrThrow('Chompy bird hat (ogre yeoman)'), 50],
+	[getItemOrThrow('Chompy bird hat (yeoman)'), 70],
+	[getItemOrThrow('Chompy bird hat (ogre marksman)'), 95],
+	[getItemOrThrow('Chompy bird hat (marksman)'), 125],
+	[getItemOrThrow('Chompy bird hat (ogre woodsman)'), 170],
+	[getItemOrThrow('Chompy bird hat (woodsman)'), 225],
+	[getItemOrThrow('Chompy bird hat (ogre forester)'), 300],
+	[getItemOrThrow('Chompy bird hat (forester)'), 400],
+	[getItemOrThrow('Chompy bird hat (ogre bowmaster)'), 550],
+	[getItemOrThrow('Chompy bird hat (bowmaster)'), 700],
+	[getItemOrThrow('Chompy bird hat (ogre expert)'), 1000],
+	[getItemOrThrow('Chompy bird hat (expert)'), 1300],
+	[getItemOrThrow('Chompy bird hat (ogre dragon archer)'), 1700],
+	[getItemOrThrow('Chompy bird hat (dragon archer)'), 2250],
+	[getItemOrThrow('Chompy bird hat (expert ogre dragon archer)'), 3000],
+	[getItemOrThrow('Chompy bird hat (expert dragon archer)'), 4000]
 ] as const;
 
 export const toaPurpleItems = resolveItems([
@@ -535,28 +494,52 @@ export const minionActivityCache: Map<string, ActivityTaskData> = new Map();
 export const ParsedCustomEmojiWithGroups = /(?<animated>a?):(?<name>[^:]+):(?<id>\d{17,20})/;
 
 const globalConfigSchema = z.object({
-	patreonToken: z.coerce.string().default(''),
-	patreonCampaignID: z.coerce.number().int().default(1),
-	patreonWebhookSecret: z.coerce.string().default(''),
-	httpPort: z.coerce.number().int().default(8080),
-	clientID: z.string().min(15).max(25),
-	geAdminChannelID: z.string().default('')
+	clientID: z.string().min(10).max(25),
+	geAdminChannelID: z.string().default(''),
+	redisPort: z.coerce.number().int().optional(),
+	botToken: z.string().min(1),
+	isCI: z.coerce.boolean().default(false),
+	isProduction: z.coerce.boolean().default(production),
+	testingServerID: z.string(),
+	timeZone: z.literal('UTC')
 });
-dotenv.config({ path: path.resolve(process.cwd(), process.env.TEST ? '.env.example' : '.env') });
+dotenv.config({ path: path.resolve(process.cwd(), process.env.TEST ? '.env.test' : '.env') });
+
+if (!process.env.BOT_TOKEN && !process.env.CI) {
+	throw new Error(
+		`You need to specify the BOT_TOKEN environment variable, copy your bot token from your config.ts and put it in the ".env" file like so:\n\nBOT_TOKEN=your_token_here`
+	);
+}
+
+const OLDSCHOOLGG_TESTING_SERVER_ID = '940758552425955348';
+const isProduction = process.env.NODE_ENV === 'production';
 
 export const globalConfig = globalConfigSchema.parse({
-	patreonToken: process.env.PATREON_TOKEN,
-	patreonCampaignID: process.env.PATREON_CAMPAIGN_ID,
-	patreonWebhookSecret: process.env.PATREON_WEBHOOK_SECRET,
-	httpPort: process.env.HTTP_PORT,
 	clientID: process.env.CLIENT_ID,
-	geAdminChannelID: process.env.GE_ADMIN_CHANNEL_ID
+	geAdminChannelID: isProduction ? '830145040495411210' : '1042760447830536212',
+	redisPort: process.env.REDIS_PORT,
+	botToken: process.env.BOT_TOKEN,
+	isCI: process.env.CI,
+	isProduction,
+	testingServerID: process.env.TESTING_SERVER_ID ?? OLDSCHOOLGG_TESTING_SERVER_ID,
+	timeZone: process.env.TZ
 });
 
-export const ONE_TRILLION = 1_000_000_000_000;
-export const demonBaneWeapons = resolveItems(['Silverlight', 'Darklight', 'Arclight']);
+if ((process.env.NODE_ENV === 'production') !== globalConfig.isProduction || production !== globalConfig.isProduction) {
+	throw new Error('The NODE_ENV and isProduction variables must match');
+}
 
-const gitHash = execSync('git rev-parse HEAD').toString().trim();
+export const ONE_TRILLION = 1_000_000_000_000;
+export const demonBaneWeapons = resolveItems([
+	'Silverlight',
+	'Darklight',
+	'Arclight',
+	'Emberlight',
+	'Scorching bow',
+	'Purging staff'
+]);
+
+export const gitHash = process.env.TEST ? 'TESTGITHASH' : execSync('git rev-parse HEAD').toString().trim();
 const gitRemote = BOT_TYPE === 'BSO' ? 'gc/oldschoolbot-secret' : 'oldschoolgg/oldschoolbot';
 
 const GIT_BRANCH = BOT_TYPE === 'BSO' ? 'bso' : 'master';
@@ -572,3 +555,32 @@ META_CONSTANTS.RENDERED_STR = `**Date/Time:** ${dateFm(META_CONSTANTS.STARTUP_DA
 **Git Hash:** ${META_CONSTANTS.GIT_HASH.slice(0, 7)}
 **Commit:** <${META_CONSTANTS.GITHUB_URL}>
 **Code Difference:** <${META_CONSTANTS.GIT_DIFF_URL}>`;
+
+export const masteryKey = BOT_TYPE === 'OSB' ? 'osb_mastery' : 'bso_mastery';
+
+export const ItemIconPacks = [
+	{
+		name: 'Halloween',
+		storeBitfield: StoreBitfield.HalloweenItemIconPack,
+		id: 'halloween',
+		icons: new Map<number, CanvasImage>()
+	}
+];
+
+export const patronFeatures = {
+	ShowEnteredInGiveawayList: {
+		tier: PerkTier.Four
+	}
+};
+
+export const gearValidationChecks = new Set();
+
+export const BSO_MAX_TOTAL_LEVEL = 3120;
+
+if (!process.env.TEST && isMainThread) {
+	console.log(
+		`Starting... Git[${gitHash}] ClientID[${globalConfig.clientID}] Production[${globalConfig.isProduction}]`
+	);
+}
+
+export const MAX_CLUES_DROPPED = 100;

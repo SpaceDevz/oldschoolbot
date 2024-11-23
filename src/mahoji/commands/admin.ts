@@ -1,69 +1,50 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
-import { execSync } from 'node:child_process';
-import { inspect } from 'node:util';
+import {
+	type CommandRunOptions,
+	type MahojiUserOption,
+	bulkUpdateCommands,
+	cleanString,
+	dateFm
+} from '@oldschoolgg/toolkit/util';
+import type { ClientStorage } from '@prisma/client';
+import { economy_transaction_type } from '@prisma/client';
+import { ApplicationCommandOptionType, AttachmentBuilder, type InteractionReplyOptions } from 'discord.js';
+import { Time, calcWhatPercent, noOp, notEmpty, randArrItem, sleep, uniqueArr } from 'e';
+import { Bank, type ItemBank } from 'oldschooljs';
 
-import { codeBlock } from '@discordjs/builders';
-import { ClientStorage, economy_transaction_type } from '@prisma/client';
-import { Stopwatch } from '@sapphire/stopwatch';
-import { isThenable } from '@sentry/utils';
-import { AttachmentBuilder, escapeCodeBlock, InteractionReplyOptions } from 'discord.js';
-import { calcWhatPercent, noOp, notEmpty, randArrItem, sleep, Time, uniqueArr } from 'e';
-import { ApplicationCommandOptionType, CommandRunOptions } from 'mahoji';
-import { CommandResponse } from 'mahoji/dist/lib/structures/ICommand';
-import { MahojiUserOption } from 'mahoji/dist/lib/types';
-import { bulkUpdateCommands } from 'mahoji/dist/lib/util';
-import { Bank } from 'oldschooljs';
-import { ItemBank } from 'oldschooljs/dist/meta/types';
-
-import { ADMIN_IDS, OWNER_IDS, production, SupportServer } from '../../config';
+import { ADMIN_IDS, OWNER_IDS, SupportServer, production } from '../../config';
+import { mahojiUserSettingsUpdate } from '../../lib/MUser';
 import { BLACKLISTED_GUILDS, BLACKLISTED_USERS, syncBlacklists } from '../../lib/blacklists';
 import {
-	badges,
 	BadgesEnum,
 	BitField,
 	BitFieldData,
-	BOT_TYPE,
 	Channel,
 	DISABLED_COMMANDS,
-	globalConfig,
-	META_CONSTANTS
+	META_CONSTANTS,
+	badges,
+	globalConfig
 } from '../../lib/constants';
-import { generateGearImage } from '../../lib/gear/functions/generateGearImage';
-import { GearSetup } from '../../lib/gear/types';
+import { economyLog } from '../../lib/economyLogs';
+import type { GearSetup } from '../../lib/gear/types';
 import { GrandExchange } from '../../lib/grandExchange';
-import { mahojiUserSettingsUpdate } from '../../lib/MUser';
-import { patreonTask } from '../../lib/patreon';
-import { runRolesTask } from '../../lib/rolesTask';
-import { countUsersWithItemInCl, prisma } from '../../lib/settings/prisma';
+import { countUsersWithItemInCl } from '../../lib/settings/prisma';
 import { cancelTask, minionActivityCacheDelete } from '../../lib/settings/settings';
 import { sorts } from '../../lib/sorts';
-import { Gear } from '../../lib/structures/Gear';
-import {
-	calcPerHour,
-	cleanString,
-	convertBankToPerHourStats,
-	dateFm,
-	formatDuration,
-	sanitizeBank,
-	stringMatches,
-	toKMB
-} from '../../lib/util';
+import { calcPerHour, convertBankToPerHourStats, formatDuration, stringMatches, toKMB } from '../../lib/util';
 import { memoryAnalysis } from '../../lib/util/cachedUserIDs';
 import { mahojiClientSettingsFetch, mahojiClientSettingsUpdate } from '../../lib/util/clientSettings';
 import getOSItem, { getItem } from '../../lib/util/getOSItem';
 import { handleMahojiConfirmation } from '../../lib/util/handleMahojiConfirmation';
 import { deferInteraction, interactionReply } from '../../lib/util/interactionReply';
-import { syncLinkedAccounts } from '../../lib/util/linkedAccountsUtil';
-import { logError } from '../../lib/util/logError';
 import { makeBankImage } from '../../lib/util/makeBankImage';
 import { parseBank } from '../../lib/util/parseStringBank';
 import { sendToChannelID } from '../../lib/util/webhook';
 import { Cooldowns } from '../lib/Cooldowns';
 import { syncCustomPrices } from '../lib/events';
 import { itemOption } from '../lib/mahojiCommandOptions';
-import { allAbstractCommands, OSBMahojiCommand } from '../lib/util';
+import type { OSBMahojiCommand } from '../lib/util';
+import { allAbstractCommands } from '../lib/util';
 import { mahojiUsersSettingsFetch } from '../mahojiSettings';
-import { getUserInfo } from './minion';
 
 export const gifs = [
 	'https://tenor.com/view/angry-stab-monkey-knife-roof-gif-13841993',
@@ -71,68 +52,10 @@ export const gifs = [
 	'https://tenor.com/view/monkey-monito-mask-gif-23036908'
 ];
 
-async function unsafeEval({ userID, code }: { userID: string; code: string }) {
-	if (!OWNER_IDS.includes(userID)) return { content: 'Unauthorized' };
-	code = code.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
-	const stopwatch = new Stopwatch();
-	let syncTime = '?';
-	let asyncTime = '?';
-	let result = null;
-	let thenable = false;
-	// eslint-disable-next-line @typescript-eslint/init-declarations
-	try {
-		code = `\nconst {Gear} = require('../../lib/structures/Gear')\n${code};`;
-		code = `\nconst {Bank} = require('oldschooljs');\n${code}`;
-		// eslint-disable-next-line no-eval
-		result = eval(code);
-		syncTime = stopwatch.toString();
-		if (isThenable(result)) {
-			thenable = true;
-			stopwatch.restart();
-			result = await result;
-			asyncTime = stopwatch.toString();
-		}
-	} catch (error: any) {
-		if (!syncTime) syncTime = stopwatch.toString();
-		if (thenable && !asyncTime) asyncTime = stopwatch.toString();
-		if (error && error.stack) logError(error);
-		result = error;
-	}
-
-	stopwatch.stop();
-	if (result instanceof Bank) {
-		return { files: [(await makeBankImage({ bank: result })).file] };
-	}
-	if (result instanceof Gear) {
-		const image = await generateGearImage(await mUserFetch(userID), result, null, null);
-		return { files: [image] };
-	}
-
-	if (Buffer.isBuffer(result)) {
-		return {
-			content: 'The result was a buffer.',
-			files: [result]
-		};
-	}
-
-	if (typeof result !== 'string') {
-		result = inspect(result, {
-			depth: 1,
-			showHidden: false
-		});
-	}
-
-	return {
-		content: `${codeBlock(escapeCodeBlock(result))}
-**Time:** ${asyncTime ? `⏱ ${asyncTime}<${syncTime}>` : `⏱ ${syncTime}`}
-`
-	};
-}
-
 async function allEquippedPets() {
 	const pets = await prisma.$queryRawUnsafe<
 		{ pet: number; qty: number }[]
-	>(`SELECT "minion.equippedPet" AS pet, COUNT("minion.equippedPet") AS qty
+	>(`SELECT "minion.equippedPet" AS pet, COUNT("minion.equippedPet")::int AS qty
 FROM users
 WHERE "minion.equippedPet" IS NOT NULL
 GROUP BY "minion.equippedPet"
@@ -142,25 +65,6 @@ ORDER BY qty DESC;`);
 		bank.add(pet, qty);
 	}
 	return bank;
-}
-
-async function evalCommand(userID: string, code: string): CommandResponse {
-	try {
-		if (!OWNER_IDS.includes(userID)) {
-			return "You don't have permission to use this command.";
-		}
-		const res = await unsafeEval({ code, userID });
-
-		if (res.content && res.content.length > 2000) {
-			return {
-				files: [{ attachment: Buffer.from(res.content), name: 'output.txt' }]
-			};
-		}
-
-		return res;
-	} catch (err: any) {
-		return err.message ?? err;
-	}
 }
 
 async function getAllTradedItems(giveUniques = false) {
@@ -177,11 +81,11 @@ async function getAllTradedItems(giveUniques = false) {
 		}
 	});
 
-	let total = new Bank();
+	const total = new Bank();
 
 	if (giveUniques) {
 		for (const trans of economyTrans) {
-			let bank = new Bank().add(trans.items_received as ItemBank).add(trans.items_sent as ItemBank);
+			const bank = new Bank().add(trans.items_received as ItemBank).add(trans.items_sent as ItemBank);
 
 			for (const item of bank.items()) {
 				total.add(item[0].id);
@@ -231,10 +135,9 @@ AND ("gear.melee" IS NOT NULL OR
 			const bank = new Bank();
 			for (const user of res) {
 				for (const gear of Object.values(user)
-					.map(i => (i === null ? [] : Object.values(i)))
-					.flat()
+					.flatMap(i => (i === null ? [] : Object.values(i)))
 					.filter(notEmpty)) {
-					let item = getItem(gear.item);
+					const item = getItem(gear.item);
 					if (item) {
 						bank.add(gear.item, gear.quantity);
 					}
@@ -311,11 +214,12 @@ WHERE blowpipe iS NOT NULL and (blowpipe->>'dartQuantity')::int != 0;`),
 				economyBank.add("Zulrah's scales", scales);
 				economyBank.add(dart, qty);
 			}
-			sanitizeBank(economyBank);
 			return {
 				files: [
 					(await makeBankImage({ bank: economyBank })).file,
-					new AttachmentBuilder(Buffer.from(JSON.stringify(economyBank.bank, null, 4)), { name: 'bank.json' })
+					new AttachmentBuilder(Buffer.from(JSON.stringify(economyBank.toJSON(), null, 4)), {
+						name: 'bank.json'
+					})
 				]
 			};
 		}
@@ -330,7 +234,7 @@ WHERE blowpipe iS NOT NULL and (blowpipe->>'dartQuantity')::int != 0;`),
 		name: 'Most Active',
 		run: async () => {
 			const res = await prisma.$queryRawUnsafe<{ num: number; username: string }[]>(`
-SELECT sum(duration) as num, "new_user"."username", user_id
+SELECT sum(duration)::int as num, "new_user"."username", user_id
 FROM activity
 INNER JOIN "new_users" "new_user" on "new_user"."id" = "activity"."user_id"::text
 WHERE start_date > now() - interval '2 days'
@@ -408,7 +312,7 @@ The next buy limit reset is at: ${buyLimitInterval.nextResetStr}, it resets ever
 	{
 		name: 'Buy GP Sinks',
 		run: async () => {
-			const result = await prisma.$queryRawUnsafe<{ item_id: string; total_gp_spent: number }[]>(`SELECT
+			const result = await prisma.$queryRawUnsafe<{ item_id: string; total_gp_spent: bigint }[]>(`SELECT
   key AS item_id,
   sum((cost_gp / total_items) * value::integer) AS total_gp_spent
 FROM
@@ -475,6 +379,28 @@ from bot_item_sell;`);
 				]
 			};
 		}
+	},
+	{
+		name: 'Max G.E Slot users',
+		run: async () => {
+			const res = await prisma.$queryRawUnsafe<{ user_id: string; slots_used: number }[]>(`
+SELECT user_id, COUNT(*)::int AS slots_used
+FROM ge_listing
+WHERE cancelled_at IS NULL AND fulfilled_at IS NULL
+GROUP BY user_id
+HAVING COUNT(*) >= 3
+ORDER BY slots_used DESC;
+`);
+			let usersUsingAllSlots = 0;
+			for (const row of res) {
+				const user = await mUserFetch(row.user_id);
+				const { slots } = await GrandExchange.calculateSlotsOfUser(user);
+				if (row.slots_used >= slots) usersUsingAllSlots++;
+			}
+			return {
+				content: `There are ${usersUsingAllSlots}x users using all their G.E slots.`
+			};
+		}
 	}
 ];
 
@@ -492,24 +418,6 @@ export const adminCommand: OSBMahojiCommand = {
 			type: ApplicationCommandOptionType.Subcommand,
 			name: 'reboot',
 			description: 'Reboot the bot.'
-		},
-		{
-			type: ApplicationCommandOptionType.Subcommand,
-			name: 'debug_patreon',
-			description: 'Debug patreon.'
-		},
-		{
-			type: ApplicationCommandOptionType.Subcommand,
-			name: 'eval',
-			description: 'Eval.',
-			options: [
-				{
-					type: ApplicationCommandOptionType.String,
-					name: 'code',
-					description: 'Code',
-					required: true
-				}
-			]
 		},
 		{
 			type: ApplicationCommandOptionType.Subcommand,
@@ -576,35 +484,6 @@ export const adminCommand: OSBMahojiCommand = {
 		},
 		{
 			type: ApplicationCommandOptionType.Subcommand,
-			name: 'sync_roles',
-			description: 'Sync roles'
-		},
-		{
-			type: ApplicationCommandOptionType.Subcommand,
-			name: 'sync_patreon',
-			description: 'Sync patreon'
-		},
-		{
-			type: ApplicationCommandOptionType.Subcommand,
-			name: 'add_ironman_alt',
-			description: 'Add an ironman alt account for a user',
-			options: [
-				{
-					type: ApplicationCommandOptionType.User,
-					name: 'main',
-					description: 'The main',
-					required: true
-				},
-				{
-					type: ApplicationCommandOptionType.User,
-					name: 'ironman_alt',
-					description: 'The ironman alt',
-					required: true
-				}
-			]
-		},
-		{
-			type: ApplicationCommandOptionType.Subcommand,
 			name: 'badges',
 			description: 'Manage badges of a user',
 			options: [
@@ -663,19 +542,6 @@ export const adminCommand: OSBMahojiCommand = {
 							.filter(i => disabledCommands.includes(i.name))
 							.map(i => ({ name: i.name, value: i.name }));
 					}
-				}
-			]
-		},
-		{
-			type: ApplicationCommandOptionType.Subcommand,
-			name: 'view_user',
-			description: 'View a users info',
-			options: [
-				{
-					type: ApplicationCommandOptionType.User,
-					name: 'user',
-					description: 'The user',
-					required: true
 				}
 			]
 		},
@@ -756,11 +622,6 @@ export const adminCommand: OSBMahojiCommand = {
 				}
 			]
 		},
-		// {
-		// 	type: ApplicationCommandOptionType.Subcommand,
-		// 	name: 'wipe_bingo_temp_cls',
-		// 	description: 'Wipe all temp cls of bingo users'
-		// },
 		{
 			type: ApplicationCommandOptionType.Subcommand,
 			name: 'give_items',
@@ -794,25 +655,18 @@ export const adminCommand: OSBMahojiCommand = {
 	}: CommandRunOptions<{
 		reboot?: {};
 		shut_down?: {};
-		debug_patreon?: {};
-		eval?: { code: string };
 		sync_commands?: {};
 		item_stats?: { item: string };
 		sync_blacklist?: {};
 		loot_track?: { name: string };
 		cancel_task?: { user: MahojiUserOption };
-		sync_roles?: {};
-		sync_patreon?: {};
-		add_ironman_alt?: { main: MahojiUserOption; ironman_alt: MahojiUserOption };
 		badges?: { user: MahojiUserOption; add?: string; remove?: string };
 		bypass_age?: { user: MahojiUserOption };
 		command?: { enable?: string; disable?: string };
-		view_user?: { user: MahojiUserOption };
 		set_price?: { item: string; price: number };
 		bitfield?: { user: MahojiUserOption; add?: string; remove?: string };
 		ltc?: { item?: string };
 		view?: { thing: string };
-		wipe_bingo_temp_cls?: {};
 		give_items?: { user: MahojiUserOption; items: string; reason?: string };
 	}>) => {
 		await deferInteraction(interaction);
@@ -836,80 +690,6 @@ export const adminCommand: OSBMahojiCommand = {
 			Cooldowns.delete(user.id);
 			minionActivityCacheDelete(user.id);
 			return 'Done.';
-		}
-		if (options.sync_roles) {
-			try {
-				const result = await runRolesTask();
-				if (result.length < 2000) return result;
-				return {
-					content: 'The result was too big! Check the file.',
-					files: [new AttachmentBuilder(Buffer.from(result), { name: 'roles.txt' })]
-				};
-			} catch (err: any) {
-				logError(err);
-				return `Failed to run roles task. ${err.message}`;
-			}
-		}
-		if (options.sync_patreon) {
-			await patreonTask.run();
-			syncLinkedAccounts();
-			return 'Finished syncing patrons.';
-		}
-		if (options.add_ironman_alt) {
-			const mainAccount = await mahojiUsersSettingsFetch(options.add_ironman_alt.main.user.id, {
-				minion_ironman: true,
-				id: true,
-				ironman_alts: true,
-				main_account: true
-			});
-			const altAccount = await mahojiUsersSettingsFetch(options.add_ironman_alt.ironman_alt.user.id, {
-				minion_ironman: true,
-				bitfield: true,
-				id: true,
-				ironman_alts: true,
-				main_account: true
-			});
-			const mainUser = await mUserFetch(mainAccount.id);
-			const altUser = await mUserFetch(altAccount.id);
-			if (mainAccount === altAccount) return "They're they same account.";
-			if (mainAccount.minion_ironman) return `${mainUser.usernameOrMention} is an ironman.`;
-			if (!altAccount.minion_ironman) return `${altUser.usernameOrMention} is not an ironman.`;
-			if (!altAccount.bitfield.includes(BitField.PermanentIronman)) {
-				return `${altUser.usernameOrMention} is not a *permanent* ironman.`;
-			}
-
-			const peopleWithThisAltAlready = (
-				await prisma.$queryRawUnsafe<unknown[]>(
-					`SELECT id FROM users WHERE '${altAccount.id}' = ANY(ironman_alts);`
-				)
-			).length;
-			if (peopleWithThisAltAlready > 0) {
-				return `Someone already has ${altUser.usernameOrMention} as an ironman alt.`;
-			}
-			if (mainAccount.main_account) {
-				return `${mainUser.usernameOrMention} has a main account connected already.`;
-			}
-			if (altAccount.main_account) {
-				return `${altUser.usernameOrMention} has a main account connected already.`;
-			}
-			const mainAccountsAlts = mainAccount.ironman_alts;
-			if (mainAccountsAlts.includes(altAccount.id)) {
-				return `${mainUser.usernameOrMention} already has ${altUser.usernameOrMention} as an alt.`;
-			}
-
-			await handleMahojiConfirmation(
-				interaction,
-				`Are you sure that \`${altUser.usernameOrMention}\` is the alt account of \`${mainUser.usernameOrMention}\`?`
-			);
-			await mahojiUserSettingsUpdate(mainAccount.id, {
-				ironman_alts: {
-					push: altAccount.id
-				}
-			});
-			await mahojiUserSettingsUpdate(altAccount.id, {
-				main_account: mainAccount.id
-			});
-			return `You set \`${altUser.usernameOrMention}\` as the alt account of \`${mainUser.usernameOrMention}\`.`;
 		}
 
 		if (options.badges) {
@@ -1007,10 +787,6 @@ export const adminCommand: OSBMahojiCommand = {
 			}
 			return 'Invalid.';
 		}
-		if (options.view_user) {
-			const userToView = await mUserFetch(options.view_user.user.user.id);
-			return (await getUserInfo(userToView)).everythingString;
-		}
 		if (options.set_price) {
 			const item = getItem(options.set_price.item);
 			if (!item) return 'Invalid item.';
@@ -1042,7 +818,7 @@ export const adminCommand: OSBMahojiCommand = {
 					.map(entry => `**${entry[0]}:** ${entry[1]?.name}`)
 					.join('\n');
 			}
-			const bit = parseInt(bitEntry[0]);
+			const bit = Number.parseInt(bitEntry[0]);
 
 			if (
 				!bit ||
@@ -1077,30 +853,35 @@ export const adminCommand: OSBMahojiCommand = {
 		}
 		if (options.reboot) {
 			globalClient.isShuttingDown = true;
-			await sleep(Time.Second * 20);
+			await economyLog('Flushing economy log due to reboot', true);
 			await interactionReply(interaction, {
 				content: 'https://media.discordapp.net/attachments/357422607982919680/1004657720722464880/freeze.gif'
 			});
+			await sleep(Time.Second * 20);
 			await sendToChannelID(Channel.GeneralChannel, {
 				content: `I am shutting down! Goodbye :(
 
 ${META_CONSTANTS.RENDERED_STR}`
 			}).catch(noOp);
-			process.exit();
+			import('exit-hook').then(({ gracefulExit }) => gracefulExit(1));
+			return 'Turning off...';
 		}
 		if (options.shut_down) {
+			debugLog('SHUTTING DOWN');
 			globalClient.isShuttingDown = true;
-			let timer = production ? Time.Second * 30 : Time.Second * 5;
+			const timer = production ? Time.Second * 30 : Time.Second * 5;
 			await interactionReply(interaction, {
 				content: `Shutting down in ${dateFm(new Date(Date.now() + timer))}.`
 			});
-			await Promise.all([sleep(timer), GrandExchange.queue.onEmpty()]);
+			await economyLog('Flushing economy log due to shutdown', true);
+			await Promise.all([sleep(timer), GrandExchange.queue.onIdle()]);
 			await sendToChannelID(Channel.GeneralChannel, {
 				content: `I am shutting down! Goodbye :(
 
 ${META_CONSTANTS.RENDERED_STR}`
 			}).catch(noOp);
-			execSync(`pm2 stop ${BOT_TYPE === 'OSB' ? 'osb' : 'bso'}`);
+			import('exit-hook').then(({ gracefulExit }) => gracefulExit(0));
+			return 'Turning off...';
 		}
 
 		if (options.sync_blacklist) {
@@ -1120,7 +901,7 @@ Guilds Blacklisted: ${BLACKLISTED_GUILDS.size}`;
 
 		if (options.sync_commands) {
 			const global = Boolean(production);
-			const totalCommands = globalClient.mahojiClient.commands.values;
+			const totalCommands = Array.from(globalClient.mahojiClient.commands.values());
 			const globalCommands = totalCommands.filter(i => !i.guildID);
 			const guildCommands = totalCommands.filter(i => Boolean(i.guildID));
 			if (global) {
@@ -1188,13 +969,6 @@ ${guildCommands.length} Guild commands`;
 			return `Gave ${items} to ${user.mention}`;
 		}
 
-		if (options.debug_patreon) {
-			const result = await patreonTask.fetchPatrons();
-			return {
-				files: [{ attachment: Buffer.from(JSON.stringify(result, null, 4)), name: 'patreon.txt' }]
-			};
-		}
-
 		/**
 		 *
 		 * Owner Only Commands
@@ -1204,9 +978,6 @@ ${guildCommands.length} Guild commands`;
 			return randArrItem(gifs);
 		}
 
-		if (options.eval) {
-			return evalCommand(userID.toString(), options.eval.code);
-		}
 		if (options.item_stats) {
 			const item = getItem(options.item_stats.item);
 			if (!item) return 'Invalid item.';
@@ -1215,7 +986,7 @@ ${guildCommands.length} Guild commands`;
 FROM users
 WHERE bank->>'${item.id}' IS NOT NULL;`);
 			return `There are ${ownedResult[0].qty.toLocaleString()} ${item.name} owned by everyone.
-There are ${await countUsersWithItemInCl(item.id, isIron)} ${isIron ? 'ironmen' : 'people'} with atleast 1 ${
+There are ${await countUsersWithItemInCl(item.id, isIron)} ${isIron ? 'ironmen' : 'people'} with at least 1 ${
 				item.name
 			} in their collection log.`;
 		}
@@ -1272,15 +1043,13 @@ There are ${await countUsersWithItemInCl(item.id, isIron)} ${isIron ? 'ironmen' 
 			for (const res of results) {
 				if (!res.total_duration || !res.total_kc) continue;
 				if (Object.keys({ ...(res.cost as ItemBank), ...(res.loot as ItemBank) }).length === 0) continue;
-				const cost = new Bank(res.cost as ItemBank);
-				const loot = new Bank(res.loot as ItemBank);
-				sanitizeBank(cost);
-				sanitizeBank(loot);
+				const cost = Bank.withSanitizedValues(res.cost as ItemBank);
+				const loot = Bank.withSanitizedValues(res.loot as ItemBank);
 				const marketValueCost = Math.round(cost.value());
 				const marketValueLoot = Math.round(loot.value());
 				const ratio = marketValueLoot / marketValueCost;
 
-				if (!marketValueCost || !marketValueLoot || ratio === Infinity) continue;
+				if (!marketValueCost || !marketValueLoot || ratio === Number.POSITIVE_INFINITY) continue;
 
 				str += `${[
 					res.id,

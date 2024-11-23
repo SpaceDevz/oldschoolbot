@@ -1,4 +1,4 @@
-import resolveItems from '../../util/resolveItems';
+import { resolveItems } from 'oldschooljs/dist/util/util';
 
 const Potions = [
 	{
@@ -8,6 +8,15 @@ const Potions = [
 	{
 		name: 'Super restore',
 		items: resolveItems(['Super restore(1)', 'Super restore(2)', 'Super restore(3)', 'Super restore(4)'])
+	},
+	{
+		name: 'Blighted super restore',
+		items: resolveItems([
+			'Blighted super restore(1)',
+			'Blighted super restore(2)',
+			'Blighted super restore(3)',
+			'Blighted super restore(4)'
+		])
 	},
 	{
 		name: 'Prayer potion',
@@ -36,6 +45,10 @@ const Potions = [
 	{
 		name: 'Serum 207',
 		items: resolveItems(['Serum 207(1)', 'Serum 207(2)', 'Serum 207(3)', 'Serum 207(4)'])
+	},
+	{
+		name: 'Guthix rest',
+		items: resolveItems(['Guthix rest(1)', 'Guthix rest(2)', 'Guthix rest(3)', 'Guthix rest(4)'])
 	},
 	{
 		name: 'Compost potion',
@@ -215,6 +228,15 @@ const Potions = [
 		items: resolveItems(['Anti-venom(1)', 'Anti-venom(2)', 'Anti-venom(3)', 'Anti-venom(4)'])
 	},
 	{
+		name: 'Menaphite remedy',
+		items: resolveItems([
+			'Menaphite remedy(1)',
+			'Menaphite remedy(2)',
+			'Menaphite remedy(3)',
+			'Menaphite remedy(4)'
+		])
+	},
+	{
 		name: 'Super combat potion',
 		items: resolveItems([
 			'Super combat potion(1)',
@@ -230,6 +252,15 @@ const Potions = [
 			'Super antifire potion(2)',
 			'Super antifire potion(3)',
 			'Super antifire potion(4)'
+		])
+	},
+	{
+		name: 'Extended anti-venom+',
+		items: resolveItems([
+			'Extended anti-venom+(1)',
+			'Extended anti-venom+(2)',
+			'Extended anti-venom+(3)',
+			'Extended anti-venom+(4)'
 		])
 	},
 	{
@@ -257,6 +288,10 @@ const Potions = [
 	{
 		name: 'Ancient brew',
 		items: resolveItems(['Ancient brew(1)', 'Ancient brew(2)', 'Ancient brew(3)', 'Ancient brew(4)'])
+	},
+	{
+		name: 'Forgotten brew',
+		items: resolveItems(['Forgotten brew(1)', 'Forgotten brew(2)', 'Forgotten brew(3)', 'Forgotten brew(4)'])
 	},
 	{
 		name: 'Attack mix',

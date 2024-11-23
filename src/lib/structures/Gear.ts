@@ -1,24 +1,25 @@
-import { GearPreset } from '@prisma/client';
+import type { GearPreset } from '@prisma/client';
 import { notEmpty, objectKeys, uniqueArr } from 'e';
 import { Bank } from 'oldschooljs';
-import { EquipmentSlot, Item } from 'oldschooljs/dist/meta/types';
 
+import { EquipmentSlot, type Item } from 'oldschooljs/dist/meta/types';
+
+import { resolveItems } from 'oldschooljs/dist/util/util';
 import { getSimilarItems, inverseSimilarItems } from '../data/similarItems';
-import {
+import type {
 	DefenceGearStat,
 	GearSetup,
 	GearSetupType,
 	GearSlotItem,
-	GearStat,
 	GearStats,
 	OffenceGearStat,
 	OtherGearStat
 } from '../gear/types';
-import { GearRequirement } from '../minions/types';
+import { GearStat } from '../gear/types';
+import type { GearRequirement } from '../minions/types';
 import { assert } from '../util';
 import getOSItem from '../util/getOSItem';
 import itemID from '../util/itemID';
-import resolveItems from '../util/resolveItems';
 
 export type PartialGearSetup = Partial<{
 	[key in EquipmentSlot]: string;
@@ -70,14 +71,7 @@ export const defaultGear: GearSetup = {
 	[EquipmentSlot.Weapon]: null
 };
 Object.freeze(defaultGear);
-export function filterGearSetup(gear: undefined | null | GearSetup | PartialGearSetup): GearSetup | undefined {
-	const filteredGear = !gear
-		? undefined
-		: typeof gear.ammo === 'undefined' || typeof gear.ammo === 'string'
-		? constructGearSetup(gear as PartialGearSetup)
-		: (gear as GearSetup);
-	return filteredGear;
-}
+
 export const globalPresets: (GearPreset & { defaultSetup: GearSetupType })[] = [
 	{
 		name: 'graceful',
@@ -101,7 +95,7 @@ export const globalPresets: (GearPreset & { defaultSetup: GearSetupType })[] = [
 		pinned_setup: null
 	},
 	{
-		name: 'carpenter',
+		name: 'construction',
 		user_id: '123',
 		head: itemID("Carpenter's helmet"),
 		neck: null,
@@ -122,7 +116,7 @@ export const globalPresets: (GearPreset & { defaultSetup: GearSetupType })[] = [
 		pinned_setup: null
 	},
 	{
-		name: 'rogue',
+		name: 'thieving',
 		user_id: '123',
 		head: itemID('Rogue mask'),
 		neck: null,
@@ -164,7 +158,7 @@ export const globalPresets: (GearPreset & { defaultSetup: GearSetupType })[] = [
 		pinned_setup: null
 	},
 	{
-		name: 'angler',
+		name: 'fishing',
 		user_id: '123',
 		head: itemID('Angler hat'),
 		neck: null,
@@ -185,28 +179,7 @@ export const globalPresets: (GearPreset & { defaultSetup: GearSetupType })[] = [
 		pinned_setup: null
 	},
 	{
-		name: 'spirit_angler',
-		user_id: '123',
-		head: itemID('Spirit angler headband'),
-		neck: null,
-		body: itemID('Spirit angler top'),
-		legs: itemID('Spirit angler waders'),
-		cape: null,
-		two_handed: null,
-		hands: null,
-		feet: itemID('Spirit angler boots'),
-		shield: null,
-		weapon: null,
-		ring: null,
-		ammo: null,
-		ammo_qty: null,
-		emoji_id: null,
-		times_equipped: 0,
-		defaultSetup: 'skilling',
-		pinned_setup: null
-	},
-	{
-		name: 'pyromancer',
+		name: 'firemaking',
 		user_id: '123',
 		head: itemID('Pyromancer hood'),
 		neck: null,
@@ -227,7 +200,7 @@ export const globalPresets: (GearPreset & { defaultSetup: GearSetupType })[] = [
 		pinned_setup: null
 	},
 	{
-		name: 'prospector',
+		name: 'mining',
 		user_id: '123',
 		head: itemID('Prospector helmet'),
 		neck: null,
@@ -248,7 +221,7 @@ export const globalPresets: (GearPreset & { defaultSetup: GearSetupType })[] = [
 		pinned_setup: null
 	},
 	{
-		name: 'lumberjack',
+		name: 'woodcutting',
 		user_id: '123',
 		head: itemID('Lumberjack hat'),
 		neck: null,
@@ -269,7 +242,7 @@ export const globalPresets: (GearPreset & { defaultSetup: GearSetupType })[] = [
 		pinned_setup: null
 	},
 	{
-		name: 'farmer',
+		name: 'farming',
 		user_id: '123',
 		head: itemID("Farmer's strawhat"),
 		neck: null,
@@ -311,7 +284,7 @@ export const globalPresets: (GearPreset & { defaultSetup: GearSetupType })[] = [
 		pinned_setup: null
 	},
 	{
-		name: 'smith',
+		name: 'smithing',
 		user_id: '123',
 		head: null,
 		neck: null,
@@ -438,10 +411,7 @@ export class Gear {
 				if (inverse) {
 					values.push(...inverse.values());
 				}
-				const similarItems = getSimilarItems(item);
-				if (similarItems) {
-					values.push(...similarItems);
-				}
+				values.push(...getSimilarItems(item));
 			}
 		}
 
@@ -471,8 +441,8 @@ export class Gear {
 			let currentCount = 0;
 			for (const i of [...items]) {
 				const similarItems = getSimilarItems(i);
-				if (similarItems.length > 0) {
-					if (similarItems.some(si => allItems.includes(si))) currentCount++;
+				if (similarItems.some(si => allItems.includes(si))) {
+					currentCount++;
 				} else if (allItems.includes(i)) currentCount++;
 			}
 			return currentCount === targetCount;
@@ -480,7 +450,6 @@ export class Gear {
 		// similar = true, every = false
 		for (const i of [...items]) {
 			const similarItems = getSimilarItems(i);
-			similarItems.push(i);
 			if (similarItems.some(si => allItems.includes(si))) return true;
 		}
 		return false;
@@ -523,7 +492,7 @@ export class Gear {
 		if (allItems.length === 0) {
 			return 'No items';
 		}
-		let items = [];
+		const items = [];
 		for (const item of allItems) {
 			items.push(getOSItem(item).name);
 		}

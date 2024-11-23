@@ -1,13 +1,14 @@
-import { Time } from 'e';
+import { Time, roll } from 'e';
 import { Bank, Monsters } from 'oldschooljs';
 
-import { QuestID } from '../../../../../mahoji/lib/abstracted_commands/questCommand';
-import { dukeSucellusCL, theLeviathanCL } from '../../../../data/CollectionsExport';
+import { deepResolveItems, resolveItems } from 'oldschooljs/dist/util/util';
+import { dukeSucellusCL, theLeviathanCL, theWhispererCL, vardorvisCL } from '../../../../data/CollectionsExport';
 import { GearStat } from '../../../../gear/types';
 import { SkillsEnum } from '../../../../skilling/types';
+import { getOSItem } from '../../../../util/getOSItem';
 import itemID from '../../../../util/itemID';
-import resolveItems, { deepResolveItems } from '../../../../util/resolveItems';
-import { KillableMonster } from '../../../types';
+import type { KillableMonster, KillableMonsterEffect } from '../../../types';
+import { QuestID } from '../../quests';
 
 const awakenedDeathProps = {
 	hardness: 0.9,
@@ -15,6 +16,25 @@ const awakenedDeathProps = {
 	lowestDeathChance: 50,
 	highestDeathChance: 95
 };
+
+function makeTabletEffect(itemName: string): KillableMonster['effect'] {
+	const item = getOSItem(itemName);
+	return ({ quantity, gearBank }: Parameters<KillableMonsterEffect>['0']): ReturnType<KillableMonsterEffect> => {
+		if (gearBank.bank.has(item)) return;
+		let gotTab = false;
+		for (let i = 0; i < quantity; i++) {
+			if (roll(25)) {
+				gotTab = true;
+				break;
+			}
+		}
+		if (!gotTab) return;
+		return {
+			messages: [`You got a ${item.name}!`],
+			loot: new Bank().add(item)
+		};
+	};
+}
 
 export const desertTreasureKillableBosses: KillableMonster[] = [
 	{
@@ -74,6 +94,7 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 		healAmountNeeded: 45 * 20,
 		attackStyleToUse: GearStat.AttackSlash,
 		attackStylesUsed: [GearStat.AttackSlash],
+		effect: makeTabletEffect('Frozen tablet'),
 		requiredQuests: [QuestID.DesertTreasureII],
 		degradeableItemUsage: [
 			{
@@ -101,10 +122,6 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 		notifyDrops: resolveItems(['Virtus robe top', 'Baron', 'Virtus robe bottom', 'Virtus mask']),
 		qpRequired: 100,
 		equippedItemBoosts: [
-			{
-				items: [{ boostPercent: 3, itemID: itemID('Avernic defender') }],
-				gearSetup: 'melee'
-			},
 			{
 				items: [{ boostPercent: 3, itemID: itemID('Ferocious gloves') }],
 				gearSetup: 'melee'
@@ -149,6 +166,7 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 		healAmountNeeded: 45 * 20 * 2.5,
 		attackStyleToUse: GearStat.AttackSlash,
 		attackStylesUsed: [GearStat.AttackSlash],
+		effect: makeTabletEffect('Frozen tablet'),
 		requiredQuests: [QuestID.DesertTreasureII],
 		degradeableItemUsage: [
 			{
@@ -238,6 +256,7 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 		healAmountNeeded: 45 * 20 * 2.5,
 		attackStyleToUse: GearStat.AttackRanged,
 		attackStylesUsed: [GearStat.AttackRanged],
+		effect: makeTabletEffect('Scarred tablet'),
 		requiredQuests: [QuestID.DesertTreasureII],
 		deathProps: {
 			hardness: 0.6,
@@ -314,6 +333,7 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 		healAmountNeeded: 45 * 20,
 		attackStyleToUse: GearStat.AttackRanged,
 		attackStylesUsed: [GearStat.AttackRanged],
+		effect: makeTabletEffect('Scarred tablet'),
 		requiredQuests: [QuestID.DesertTreasureII],
 		itemCost: {
 			itemCost: new Bank().add("Awakener's orb"),
@@ -381,7 +401,7 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 			prayer: 43,
 			hitpoints: 70
 		},
-		uniques: theLeviathanCL,
+		uniques: theWhispererCL,
 		itemsRequired: deepResolveItems([
 			['Ancestral robe top', 'Virtus robe top', "Ahrim's robetop"],
 			['Ancestral robe bottom', 'Virtus robe bottom', "Ahrim's robeskirt"]
@@ -391,6 +411,7 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 		healAmountNeeded: 55 * 20,
 		attackStyleToUse: GearStat.AttackMagic,
 		attackStylesUsed: [GearStat.AttackMagic],
+		effect: makeTabletEffect('Sirenic tablet'),
 		requiredQuests: [QuestID.DesertTreasureII],
 		degradeableItemUsage: [
 			{
@@ -404,6 +425,16 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 					{
 						itemID: itemID('Sanguinesti staff'),
 						boostPercent: 7
+					}
+				]
+			},
+			{
+				required: false,
+				gearSetup: 'range',
+				items: [
+					{
+						itemID: itemID('Venator bow'),
+						boostPercent: 5
 					}
 				]
 			}
@@ -427,11 +458,11 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 				gearSetup: 'mage'
 			},
 			{
-				items: [{ boostPercent: 3, itemID: itemID('Zaryte vambraces') }],
+				items: [{ boostPercent: 3, itemID: itemID('Tormented bracelet') }],
 				gearSetup: 'mage'
 			},
 			{
-				items: [{ boostPercent: 3, itemID: itemID('Pegasian boots') }],
+				items: [{ boostPercent: 3, itemID: itemID('Eternal boots') }],
 				gearSetup: 'mage'
 			},
 			{
@@ -473,7 +504,7 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 			hitpoints: 70,
 			magic: 85
 		},
-		uniques: theLeviathanCL,
+		uniques: theWhispererCL,
 		itemsRequired: deepResolveItems([
 			['Ancestral robe top', 'Virtus robe top', "Ahrim's robetop"],
 			['Ancestral robe bottom', 'Virtus robe bottom', "Ahrim's robeskirt"]
@@ -483,6 +514,7 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 		healAmountNeeded: 45 * 20 * 2.5,
 		attackStyleToUse: GearStat.AttackMagic,
 		attackStylesUsed: [GearStat.AttackMagic],
+		effect: makeTabletEffect('Sirenic tablet'),
 		requiredQuests: [QuestID.DesertTreasureII],
 		degradeableItemUsage: [
 			{
@@ -496,6 +528,16 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 					{
 						itemID: itemID('Sanguinesti staff'),
 						boostPercent: 7
+					}
+				]
+			},
+			{
+				required: false,
+				gearSetup: 'range',
+				items: [
+					{
+						itemID: itemID('Venator bow'),
+						boostPercent: 5
 					}
 				]
 			}
@@ -512,7 +554,7 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 		aliases: Monsters.Vardorvis.aliases,
 		timeToFinish: Time.Minute * 5.1,
 		table: Monsters.Vardorvis,
-		notifyDrops: resolveItems(['Virtus robe top', 'Baron', 'Virtus robe bottom', 'Virtus mask']),
+		notifyDrops: resolveItems(['Virtus robe top', 'Butch', 'Virtus robe bottom', 'Virtus mask']),
 		qpRequired: 100,
 		equippedItemBoosts: [
 			{
@@ -553,7 +595,7 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 			prayer: 43,
 			hitpoints: 70
 		},
-		uniques: dukeSucellusCL,
+		uniques: vardorvisCL,
 		itemsRequired: deepResolveItems([
 			['Torva platebody', 'Bandos chestplate'],
 			['Torva platelegs', 'Bandos tassets']
@@ -563,6 +605,7 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 		healAmountNeeded: 45 * 20,
 		attackStyleToUse: GearStat.AttackSlash,
 		attackStylesUsed: [GearStat.AttackSlash],
+		effect: makeTabletEffect('Strangled tablet'),
 		requiredQuests: [QuestID.DesertTreasureII],
 		degradeableItemUsage: [
 			{
@@ -587,13 +630,9 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 		aliases: Monsters.AwakenedVardorvis.aliases,
 		timeToFinish: Time.Minute * 15.5,
 		table: Monsters.AwakenedVardorvis,
-		notifyDrops: resolveItems(['Virtus robe top', 'Baron', 'Virtus robe bottom', 'Virtus mask']),
+		notifyDrops: resolveItems(['Virtus robe top', 'Butch', 'Virtus robe bottom', 'Virtus mask']),
 		qpRequired: 100,
 		equippedItemBoosts: [
-			{
-				items: [{ boostPercent: 3, itemID: itemID('Avernic defender') }],
-				gearSetup: 'melee'
-			},
 			{
 				items: [{ boostPercent: 3, itemID: itemID('Ferocious gloves') }],
 				gearSetup: 'melee'
@@ -628,7 +667,7 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 			prayer: 43,
 			hitpoints: 70
 		},
-		uniques: dukeSucellusCL,
+		uniques: vardorvisCL,
 		itemsRequired: deepResolveItems([
 			['Torva platebody', 'Bandos chestplate'],
 			['Torva platelegs', 'Bandos tassets']
@@ -638,6 +677,7 @@ export const desertTreasureKillableBosses: KillableMonster[] = [
 		healAmountNeeded: 45 * 20 * 2.5,
 		attackStyleToUse: GearStat.AttackSlash,
 		attackStylesUsed: [GearStat.AttackSlash],
+		effect: makeTabletEffect('Strangled tablet'),
 		requiredQuests: [QuestID.DesertTreasureII],
 		degradeableItemUsage: [
 			{

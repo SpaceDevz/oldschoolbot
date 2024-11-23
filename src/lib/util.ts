@@ -1,88 +1,64 @@
-import { gzip } from 'node:zlib';
-
-import { stripEmojis } from '@oldschoolgg/toolkit';
-import { Stopwatch } from '@sapphire/stopwatch';
-import { createHash } from 'crypto';
 import {
+	type CommandResponse,
+	calcPerHour,
+	formatDuration,
+	isWeekend,
+	makeComponents,
+	stringMatches
+} from '@oldschoolgg/toolkit/util';
+import type {
 	BaseMessageOptions,
-	ButtonBuilder,
 	ButtonInteraction,
 	CacheType,
 	Collection,
 	CollectorFilter,
-	ComponentType,
-	escapeMarkdown,
 	Guild,
 	InteractionReplyOptions,
-	InteractionType,
 	Message,
 	MessageEditOptions,
 	SelectMenuInteraction,
 	TextChannel
 } from 'discord.js';
-import { chunk, notEmpty, objectEntries, Time } from 'e';
-import { CommandResponse } from 'mahoji/dist/lib/structures/ICommand';
-import murmurHash from 'murmurhash';
-import { Bank } from 'oldschooljs';
-import { bool, integer, nodeCrypto, real } from 'random-js';
+import type { ComponentType } from 'discord.js';
+import { Time, objectEntries } from 'e';
+import { bool, integer, nativeMath, nodeCrypto, real } from 'random-js';
 
+import { Stopwatch } from '@oldschoolgg/toolkit/structures';
+import type { Prisma } from '@prisma/client';
+import { LRUCache } from 'lru-cache';
 import { ADMIN_IDS, OWNER_IDS, SupportServer } from '../config';
-import { ClueTiers } from './clues/clueTiers';
-import { badgesCache, BitField, projectiles, usernameCache } from './constants';
-import { UserStatsDataNeededForCL } from './data/Collections';
-import { DefenceGearStat, GearSetupType, GearSetupTypes, GearStat, OffenceGearStat } from './gear/types';
-import type { Consumable } from './minions/types';
-import { MUserClass } from './MUser';
+import type { MUserClass } from './MUser';
 import { PaginatedMessage } from './PaginatedMessage';
+import { BitField, MAX_XP, globalConfig, projectiles } from './constants';
+import { getSimilarItems } from './data/similarItems';
+import type { DefenceGearStat, GearSetupType, OffenceGearStat } from './gear/types';
+import { GearSetupTypes, GearStat } from './gear/types';
+import type { Consumable } from './minions/types';
 import type { POHBoosts } from './poh';
 import { SkillsEnum } from './skilling/types';
-import { Gear } from './structures/Gear';
-import { MUserStats } from './structures/MUserStats';
-import type { ItemBank, Skills } from './types';
+import type { Gear } from './structures/Gear';
+import type { GearBank } from './structures/GearBank';
+import type { Skills } from './types';
 import type {
 	GroupMonsterActivityTaskOptions,
 	NexTaskOptions,
 	RaidsOptions,
+	TOAOptions,
 	TheatreOfBloodTaskOptions
 } from './types/minions';
-import getOSItem, { getItem } from './util/getOSItem';
+import { getOSItem } from './util/getOSItem';
 import itemID from './util/itemID';
+import { makeBadgeString } from './util/makeBadgeString';
 import { itemNameFromID } from './util/smallUtils';
 
-export { cleanString, stringMatches, stripEmojis } from '@oldschoolgg/toolkit';
-export * from 'oldschooljs/dist/util/index';
+export * from 'oldschooljs';
 
-const zeroWidthSpace = '\u200b';
+export { stringMatches, calcPerHour, formatDuration, makeComponents, isWeekend };
+
 // @ts-ignore ignore
-// eslint-disable-next-line no-extend-native, func-names
 BigInt.prototype.toJSON = function () {
 	return this.toString();
 };
-export function cleanMentions(guild: Guild | null, input: string, showAt = true) {
-	const at = showAt ? '@' : '';
-	return input
-		.replace(/@(here|everyone)/g, `@${zeroWidthSpace}$1`)
-		.replace(/<(@[!&]?|#)(\d{17,19})>/g, (match, type, id) => {
-			switch (type) {
-				case '@':
-				case '@!': {
-					const tag = guild?.client.users.cache.get(id);
-					return tag ? `${at}${tag.username}` : `<${type}${zeroWidthSpace}${id}>`;
-				}
-				case '@&': {
-					const role = guild?.roles.cache.get(id);
-					return role ? `${at}${role.name}` : match;
-				}
-				default:
-					return `<${type}${zeroWidthSpace}${id}>`;
-			}
-		});
-}
-
-export function isWeekend() {
-	const currentDate = new Date(Date.now() - Time.Hour * 6);
-	return [6, 0].includes(currentDate.getDay());
-}
 
 export function convertXPtoLVL(xp: number, cap = 99) {
 	let points = 0;
@@ -98,16 +74,18 @@ export function convertXPtoLVL(xp: number, cap = 99) {
 	return cap;
 }
 
+const randEngine = process.env.TEST ? nativeMath : nodeCrypto;
+
 export function cryptoRand(min: number, max: number) {
-	return integer(min, max)(nodeCrypto);
+	return integer(min, max)(randEngine);
 }
 
 export function randFloat(min: number, max: number) {
-	return real(min, max)(nodeCrypto);
+	return real(min, max)(randEngine);
 }
 
 export function percentChance(percent: number) {
-	return bool(percent / 100)(nodeCrypto);
+	return bool(percent / 100)(randEngine);
 }
 
 export function roll(max: number) {
@@ -148,7 +126,7 @@ export function getSupportGuild(): Guild | null {
 	return guild;
 }
 
-export function calcCombatLevel(skills: Skills) {
+function calcCombatLevel(skills: Skills) {
 	const defence = skills.defence ? convertXPtoLVL(skills.defence) : 1;
 	const ranged = skills.ranged ? convertXPtoLVL(skills.ranged) : 1;
 	const hitpoints = skills.hitpoints ? convertXPtoLVL(skills.hitpoints) : 1;
@@ -204,14 +182,14 @@ export function formatItemCosts(consumable: Consumable, timeToFinish: number) {
 		}
 
 		if (multiple) {
-			str.push(subStr.join(', '));
+			str.push(joinStrings(subStr));
 		} else {
 			str.push(subStr.join(''));
 		}
 	}
 
 	if (consumables.length > 1) {
-		return `(${str.join(' OR ')})`;
+		return `(${joinStrings(str, 'or')})`;
 	}
 
 	return str.join('');
@@ -227,49 +205,17 @@ export function formatPohBoosts(boosts: POHBoosts) {
 			bonusStr.push(`${boostPercent}% for ${name}`);
 		}
 
-		slotStr.push(`${slot.replace(/\b\S/g, t => t.toUpperCase())}: (${bonusStr.join(' or ')})\n`);
+		slotStr.push(`${slot.replace(/\b\S/g, t => t.toUpperCase())}: (${joinStrings(bonusStr, 'or')})\n`);
 	}
 
-	return slotStr.join(', ');
+	return joinStrings(slotStr);
 }
 
-function gaussianRand(rolls: number = 3) {
-	let rand = 0;
-	for (let i = 0; i < rolls; i += 1) {
-		rand += Math.random();
-	}
-	return rand / rolls;
-}
-
-export function gaussianRandom(min: number, max: number, rolls?: number) {
-	return Math.floor(min + gaussianRand(rolls) * (max - min + 1));
-}
-
-export function isValidNickname(str?: string) {
-	return Boolean(
-		str &&
-			typeof str === 'string' &&
-			str.length >= 2 &&
-			str.length <= 30 &&
-			['\n', '`', '@', '<', ':'].every(char => !str.includes(char)) &&
-			stripEmojis(str).length === str.length
-	);
-}
-
-export type PaginatedMessagePage = MessageEditOptions;
+export type PaginatedMessagePage = MessageEditOptions | (() => Promise<MessageEditOptions>);
 
 export async function makePaginatedMessage(channel: TextChannel, pages: PaginatedMessagePage[], target?: string) {
 	const m = new PaginatedMessage({ pages, channel });
 	return m.run(target ? [target] : undefined);
-}
-
-export function convertPercentChance(percent: number) {
-	return (1 / (percent / 100)).toFixed(1);
-}
-
-export function murMurHashChance(input: string, percent: number) {
-	const hash = murmurHash.v3(input) % 1e4;
-	return hash < percent * 100;
 }
 
 export function convertAttackStyleToGearSetup(style: OffenceGearStat | DefenceGearStat) {
@@ -300,57 +246,6 @@ export function convertPvmStylesToGearSetup(attackStyles: SkillsEnum[]) {
 	return usedSetups;
 }
 
-export function sanitizeBank(bank: Bank) {
-	for (const [key, value] of Object.entries(bank.bank)) {
-		if (value < 1) {
-			delete bank.bank[key];
-		}
-		// If this bank contains a fractional/float,
-		// round it down.
-		if (!Number.isInteger(value)) {
-			bank.bank[key] = Math.floor(value);
-		}
-
-		const item = getItem(key);
-		if (!item) {
-			delete bank.bank[key];
-		}
-	}
-}
-
-export function validateBankAndThrow(bank: Bank) {
-	if (!bank || typeof bank !== 'object') {
-		throw new Error('Invalid bank object');
-	}
-	for (const [key, value] of Object.entries(bank.bank)) {
-		const pair = [key, value].join('-');
-		if (value < 1) {
-			throw new Error(`Less than 1 qty: ${pair}`);
-		}
-
-		if (!Number.isInteger(value)) {
-			throw new Error(`Non-integer value: ${pair}`);
-		}
-
-		const item = getItem(key);
-		if (!item) {
-			throw new Error(`Invalid item ID: ${pair}`);
-		}
-	}
-}
-
-export function convertBankToPerHourStats(bank: Bank, time: number) {
-	let result = [];
-	for (const [item, qty] of bank.items()) {
-		result.push(`${(qty / (time / Time.Hour)).toFixed(1)}/hr ${item.name}`);
-	}
-	return result;
-}
-
-export function removeMarkdownEmojis(str: string) {
-	return escapeMarkdown(stripEmojis(str));
-}
-
 export function isValidSkill(skill: string): skill is SkillsEnum {
 	return Object.values(SkillsEnum).includes(skill as SkillsEnum);
 }
@@ -371,61 +266,59 @@ export function roughMergeMahojiResponse(
 ): InteractionReplyOptions {
 	const first = normalizeMahojiResponse(one);
 	const second = normalizeMahojiResponse(two);
+	const newContent: string[] = [];
+
 	const newResponse: InteractionReplyOptions = { content: '', files: [], components: [] };
 	for (const res of [first, second]) {
-		if (res.content) newResponse.content += `${res.content} `;
+		if (res.content) newContent.push(res.content);
 		if (res.files) newResponse.files = [...newResponse.files!, ...res.files];
 		if (res.components) newResponse.components = res.components;
 	}
+	newResponse.content = newContent.join('\n\n');
+
 	return newResponse;
 }
 
-export async function asyncGzip(buffer: Buffer) {
-	return new Promise<Buffer>((resolve, reject) => {
-		gzip(buffer, {}, (error, gzipped) => {
-			if (error) {
-				reject(error);
-			}
-			resolve(gzipped);
-		});
-	});
-}
-
 export function skillingPetDropRate(
-	user: MUserClass,
+	user: MUserClass | GearBank | number,
 	skill: SkillsEnum,
 	baseDropRate: number
 ): { petDropRate: number } {
-	const twoHundredMillXP = user.skillsAsXP[skill] >= 200_000_000;
-	const skillLevel = user.skillsAsLevels[skill];
+	const xp = typeof user === 'number' ? user : user.skillsAsXP[skill];
+	const twoHundredMillXP = xp >= MAX_XP;
+	const skillLevel = convertXPtoLVL(xp);
 	const petRateDivisor = twoHundredMillXP ? 15 : 1;
 	const dropRate = Math.floor((baseDropRate - skillLevel * 25) / petRateDivisor);
 	return { petDropRate: dropRate };
 }
 
-export function getBadges(user: MUser | string | bigint) {
-	if (typeof user === 'string' || typeof user === 'bigint') {
-		return badgesCache.get(user.toString()) ?? '';
-	}
-	return user.badgeString;
+const usernameWithBadgesCache = new LRUCache<string, string>({ max: 2000 });
+
+export async function getUsername(_id: string | bigint): Promise<string> {
+	const id = _id.toString();
+	const cached = usernameWithBadgesCache.get(id);
+	if (cached) return cached;
+	const user = await prisma.user.findFirst({
+		where: {
+			id
+		},
+		select: {
+			username: true,
+			badges: true,
+			minion_ironman: true
+		}
+	});
+	if (!user?.username) return 'Unknown';
+	const badges = makeBadgeString(user.badges, user.minion_ironman);
+	const newValue = `${badges ? `${badges} ` : ''}${user.username}`;
+	usernameWithBadgesCache.set(id, newValue);
+	return newValue;
 }
 
-export function getUsername(id: string | bigint, withBadges: boolean = true) {
-	let username = usernameCache.get(id.toString()) ?? 'Unknown';
-	if (withBadges) username = `${getBadges(id)} ${username}`;
-	return username;
+export function getUsernameSync(_id: string | bigint) {
+	return usernameWithBadgesCache.get(_id.toString()) ?? 'Unknown';
 }
 
-export function makeComponents(components: ButtonBuilder[]): InteractionReplyOptions['components'] {
-	return chunk(components, 5).map(i => ({ components: i, type: ComponentType.ActionRow }));
-}
-
-type test = CollectorFilter<
-	[
-		ButtonInteraction<CacheType> | SelectMenuInteraction<CacheType>,
-		Collection<string, ButtonInteraction<CacheType> | SelectMenuInteraction>
-	]
->;
 export function awaitMessageComponentInteraction({
 	message,
 	filter,
@@ -433,7 +326,12 @@ export function awaitMessageComponentInteraction({
 }: {
 	time: number;
 	message: Message;
-	filter: test;
+	filter: CollectorFilter<
+		[
+			ButtonInteraction<CacheType> | SelectMenuInteraction<CacheType>,
+			Collection<string, ButtonInteraction<CacheType> | SelectMenuInteraction>
+		]
+	>;
 }): Promise<SelectMenuInteraction<CacheType> | ButtonInteraction<CacheType>> {
 	return new Promise((resolve, reject) => {
 		const collector = message.createMessageComponentCollector<ComponentType.Button>({ max: 1, filter, time });
@@ -445,86 +343,95 @@ export function awaitMessageComponentInteraction({
 	});
 }
 
-export async function runTimedLoggedFn(name: string, fn: () => Promise<unknown>) {
-	debugLog(`Starting ${name}...`);
+export async function runTimedLoggedFn<T>(name: string, fn: () => Promise<T>, threshholdToLog = 100): Promise<T> {
+	const logger = globalConfig.isProduction ? debugLog : console.log;
 	const stopwatch = new Stopwatch();
 	stopwatch.start();
-	await fn();
+	const result = await fn();
 	stopwatch.stop();
-	debugLog(`Finished ${name} in ${stopwatch.toString()}`);
+	if (!globalConfig.isProduction || stopwatch.duration > threshholdToLog) {
+		logger(`Took ${stopwatch} to do ${name}`);
+	}
+	return result;
 }
 
-export function getInteractionTypeName(type: InteractionType) {
-	return {
-		[InteractionType.Ping]: 'Ping',
-		[InteractionType.ApplicationCommand]: 'ApplicationCommand',
-		[InteractionType.MessageComponent]: 'MessageComponent',
-		[InteractionType.ApplicationCommandAutocomplete]: 'ApplicationCommandAutocomplete',
-		[InteractionType.ModalSubmit]: 'ModalSubmit'
-	}[type];
+export function logWrapFn<T extends (...args: any[]) => Promise<unknown>>(
+	name: string,
+	fn: T
+): (...args: Parameters<T>) => ReturnType<T> {
+	return (...args: Parameters<T>): ReturnType<T> => runTimedLoggedFn(name, () => fn(...args)) as ReturnType<T>;
 }
 
 export function isModOrAdmin(user: MUser) {
 	return [...OWNER_IDS, ...ADMIN_IDS].includes(user.id) || user.bitfield.includes(BitField.isModerator);
 }
 
-export async function calcClueScores(user: MUser) {
-	const stats = await user.fetchStats({ openable_scores: true });
-	const openableBank = new Bank(stats.openable_scores as ItemBank);
-	return openableBank
-		.items()
-		.map(entry => {
-			const tier = ClueTiers.find(i => i.id === entry[0].id);
-			if (!tier) return;
-			return {
-				tier,
-				casket: getOSItem(tier.id),
-				clueScroll: getOSItem(tier.scrollID),
-				opened: openableBank.amount(tier.id)
-			};
-		})
-		.filter(notEmpty);
-}
-
-export async function fetchStatsForCL(user: MUser): Promise<UserStatsDataNeededForCL> {
-	const stats = await MUserStats.fromID(user.id);
-	const { userStats } = stats;
-	return {
-		sacrificedBank: new Bank(userStats.sacrificed_bank as ItemBank),
-		titheFarmsCompleted: userStats.tithe_farms_completed,
-		lapsScores: userStats.laps_scores as ItemBank,
-		openableScores: new Bank(userStats.openable_scores as ItemBank),
-		kcBank: userStats.monster_scores as ItemBank,
-		highGambles: userStats.high_gambles,
-		gotrRiftSearches: userStats.gotr_rift_searches,
-		stats
-	};
-}
-
-export function md5sum(str: string) {
-	return createHash('md5').update(str).digest('hex');
-}
-
 export { assert } from './util/logError';
 export * from './util/smallUtils';
-export { channelIsSendable } from '@oldschoolgg/toolkit';
+export { channelIsSendable } from '@oldschoolgg/toolkit/util';
 
 export function checkRangeGearWeapon(gear: Gear) {
 	const weapon = gear.equippedWeapon();
-	if (!weapon) return 'You have no weapon equipped.';
 	const { ammo } = gear;
+	if (!weapon) return 'You have no weapon equipped.';
+	const usingBowfa = getSimilarItems(getOSItem('Bow of faerdhinen (c)').id).includes(weapon.id);
+	if (usingBowfa) {
+		return {
+			weapon,
+			ammo
+		};
+	}
 	if (!ammo) return 'You have no ammo equipped.';
 
-	const projectileCategory = objectEntries(projectiles).find(i => i[1].weapons.includes(weapon.id));
+	const projectileCategory = objectEntries(projectiles).find(i =>
+		i[1].weapons.flatMap(w => getSimilarItems(w)).includes(weapon.id)
+	);
 	if (!projectileCategory) return 'You have an invalid range weapon.';
 	if (!projectileCategory[1].items.includes(ammo.item)) {
 		return `You have invalid ammo for your equipped weapon. For ${
 			projectileCategory[0]
-		}-based weapons, you can use: ${projectileCategory[1].items.map(itemNameFromID).join(', ')}.`;
+		}-based weapons, you can use: ${joinStrings(projectileCategory[1].items.map(itemNameFromID), 'or')}.`;
 	}
 
 	return {
 		weapon,
 		ammo
 	};
+}
+export function normalizeTOAUsers(data: TOAOptions) {
+	const _detailedUsers = data.detailedUsers;
+	const detailedUsers = (
+		(Array.isArray(_detailedUsers[0]) ? _detailedUsers : [_detailedUsers]) as [string, number, number[]][][]
+	).map(userArr =>
+		userArr.map(user => ({
+			id: user[0],
+			points: user[1],
+			deaths: user[2]
+		}))
+	);
+	return detailedUsers;
+}
+
+export function anyoneDiedInTOARaid(data: TOAOptions) {
+	return normalizeTOAUsers(data).some(userArr => userArr.some(user => user.deaths.length > 0));
+}
+
+export type JsonKeys<T> = {
+	[K in keyof T]: T[K] extends Prisma.JsonValue ? K : never;
+}[keyof T];
+
+export function replaceLast(str: string, pattern: string, replacement: string) {
+	const last = str.lastIndexOf(pattern);
+	return last !== -1 ? `${str.slice(0, last)}${replacement}${str.slice(last + pattern.length)}` : str;
+}
+
+export function joinStrings(itemList: any[], end?: string) {
+	if (itemList.length < 2) return itemList.join(', ');
+	const lastItem = itemList[itemList.length - 1];
+	if (lastItem && (typeof lastItem !== 'string' || !lastItem.toString().includes(','))) {
+		return replaceLast(itemList.join(', '), ',', ` ${end ? end : 'and'}`);
+	} else {
+		// commas in last term will put str in weird place
+		return itemList.join(', ');
+	}
 }

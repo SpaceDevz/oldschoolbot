@@ -1,12 +1,12 @@
-import { Prisma } from '@prisma/client';
+import type { Prisma } from '@prisma/client';
 import { Bank } from 'oldschooljs';
 
 import { findBingosWithUserParticipating } from '../../mahoji/lib/bingo/BingoManager';
+import { mahojiUserSettingsUpdate } from '../MUser';
 import { deduplicateClueScrolls } from '../clues/clueUtils';
 import { handleNewCLItems } from '../handleNewCLItems';
-import { mahojiUserSettingsUpdate } from '../MUser';
 import { filterLootReplace } from '../slayer/slayerUtil';
-import { ItemBank } from '../types';
+import type { ItemBank } from '../types';
 import { logError } from './logError';
 import { userQueueFn } from './userQueues';
 
@@ -17,21 +17,16 @@ export interface TransactItemsArgs {
 	collectionLog?: boolean;
 	filterLoot?: boolean;
 	dontAddToTempCL?: boolean;
+	neverUpdateHistory?: boolean;
 	otherUpdates?: Prisma.UserUpdateArgs['data'];
 }
 
 declare global {
-	const transactItems: typeof transactItemsFromBank;
+	var transactItems: typeof transactItemsFromBank;
 }
-declare global {
-	namespace NodeJS {
-		interface Global {
-			transactItems: typeof transactItemsFromBank;
-		}
-	}
-}
+
 global.transactItems = transactItemsFromBank;
-export async function transactItemsFromBank({
+async function transactItemsFromBank({
 	userID,
 	collectionLog = false,
 	filterLoot = true,
@@ -39,9 +34,9 @@ export async function transactItemsFromBank({
 	...options
 }: TransactItemsArgs) {
 	let itemsToAdd = options.itemsToAdd ? options.itemsToAdd.clone() : undefined;
-	let itemsToRemove = options.itemsToRemove ? options.itemsToRemove.clone() : undefined;
+	const itemsToRemove = options.itemsToRemove ? options.itemsToRemove.clone() : undefined;
 
-	return userQueueFn(userID, async () => {
+	return userQueueFn(userID, async function transactItemsInner() {
 		const settings = await mUserFetch(userID);
 
 		const gpToRemove = (itemsToRemove?.amount('Coins') ?? 0) - (itemsToAdd?.amount('Coins') ?? 0);
@@ -63,10 +58,6 @@ export async function transactItemsFromBank({
 
 		let clUpdates: Prisma.UserUpdateArgs['data'] = {};
 		if (itemsToAdd) {
-			itemsToAdd = deduplicateClueScrolls({
-				loot: itemsToAdd.clone(),
-				currentBank: currentBank.clone().remove(itemsToRemove ?? {})
-			});
 			const { bankLoot, clLoot } = filterLoot
 				? filterLootReplace(settings.allItemsOwned, itemsToAdd)
 				: { bankLoot: itemsToAdd, clLoot: itemsToAdd };
@@ -118,8 +109,10 @@ export async function transactItemsFromBank({
 			newBank.remove(itemsToRemove);
 		}
 
+		deduplicateClueScrolls(newBank);
+
 		const { newUser } = await mahojiUserSettingsUpdate(userID, {
-			bank: newBank.bank,
+			bank: newBank.toJSON(),
 			GP: gpUpdate,
 			...clUpdates,
 			...options.otherUpdates
@@ -146,7 +139,9 @@ export async function transactItemsFromBank({
 			}
 		}
 
-		await handleNewCLItems({ itemsAdded, user: settings, previousCL, newCL });
+		if (!options.neverUpdateHistory) {
+			await handleNewCLItems({ itemsAdded, user: settings, previousCL, newCL });
+		}
 
 		return {
 			previousCL,

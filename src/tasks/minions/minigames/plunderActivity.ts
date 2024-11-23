@@ -6,7 +6,7 @@ import { incrementMinigameScore } from '../../../lib/settings/settings';
 import { SkillsEnum } from '../../../lib/skilling/types';
 import { handleTripFinish } from '../../../lib/util/handleTripFinish';
 import { makeBankImage } from '../../../lib/util/makeBankImage';
-import { PlunderActivityTaskOptions } from './../../../lib/types/minions';
+import type { PlunderActivityTaskOptions } from './../../../lib/types/minions';
 
 export const plunderTask: MinionTask = {
 	type: 'Plunder',
@@ -20,14 +20,12 @@ export const plunderTask: MinionTask = {
 			allRooms[allRooms.length - 1]
 		];
 		const loot = new Bank();
-		let amountUrns = 0;
 		let totalAmountUrns = 0;
-		let currentLootRoom = {};
 		let thievingXP = 0;
 
 		for (let i = 0; i < quantity; i++) {
 			for (const room of completedRooms) {
-				[currentLootRoom, amountUrns] = lootRoom(user, room.number);
+				const [currentLootRoom, amountUrns] = lootRoom(user, room.number);
 				totalAmountUrns += amountUrns;
 				loot.add(currentLootRoom);
 				thievingXP += room.xp;
@@ -39,7 +37,7 @@ export const plunderTask: MinionTask = {
 			collectionLog: true,
 			itemsToAdd: loot
 		});
-		const xpRes = await user.addXP({ skillName: SkillsEnum.Thieving, amount: thievingXP });
+		const xpRes = await user.addXP({ skillName: SkillsEnum.Thieving, amount: thievingXP, duration: data.duration });
 
 		let str = `${user}, ${user.minionName} finished doing the Pyramid Plunder ${quantity}x times. ${totalAmountUrns}x urns opened. ${xpRes}`;
 

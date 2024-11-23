@@ -1,7 +1,7 @@
 import { Bank } from 'oldschooljs';
 
 import getOSItem from '../../../../util/getOSItem';
-import { Mixable } from '../../../types';
+import type { Mixable } from '../../../types';
 
 const Crush: Mixable[] = [
 	{
@@ -86,6 +86,16 @@ const Crush: Mixable[] = [
 		level: 1,
 		xp: 0,
 		inputItems: new Bank({ 'Blue dragon scale': 1 }),
+		tickRate: 1,
+		bankTimePerPotion: 0,
+		wesley: true
+	},
+	{
+		item: getOSItem('Lava scale shard'),
+		aliases: ['lava dragon scale', 'lava dragon dust', 'lava dragon', 'lava shard'],
+		level: 1,
+		xp: 0,
+		inputItems: new Bank({ 'Lava scale': 1 }),
 		tickRate: 1,
 		bankTimePerPotion: 0,
 		wesley: true

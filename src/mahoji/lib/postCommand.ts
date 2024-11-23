@@ -1,11 +1,12 @@
-import { CommandOptions } from 'mahoji/dist/lib/types';
+import type { CommandOptions } from '@oldschoolgg/toolkit/util';
 
 import { modifyBusyCounter } from '../../lib/busyCounterCache';
 import { busyImmuneCommands, shouldTrackCommand } from '../../lib/constants';
-import { prisma } from '../../lib/settings/prisma';
+
+import { TimerManager } from '@sapphire/timer-manager';
 import { makeCommandUsage } from '../../lib/util/commandUsage';
 import { logError } from '../../lib/util/logError';
-import { AbstractCommand } from './inhibitors';
+import type { AbstractCommand } from './inhibitors';
 
 export async function postCommand({
 	abstractCommand,
@@ -14,7 +15,8 @@ export async function postCommand({
 	channelID,
 	args,
 	isContinue,
-	inhibited
+	inhibited,
+	continueDeltaMillis
 }: {
 	abstractCommand: AbstractCommand;
 	userID: string;
@@ -24,17 +26,11 @@ export async function postCommand({
 	args: CommandOptions;
 	isContinue: boolean;
 	inhibited: boolean;
+	continueDeltaMillis: number | null;
 }): Promise<string | undefined> {
 	if (!busyImmuneCommands.includes(abstractCommand.name)) {
-		setTimeout(() => modifyBusyCounter(userID, -1), 1000);
+		TimerManager.setTimeout(() => modifyBusyCounter(userID, -1), 1000);
 	}
-	debugLog('Postcommand', {
-		type: 'RUN_COMMAND',
-		command_name: abstractCommand.name,
-		user_id: userID,
-		guild_id: guildID,
-		channel_id: channelID
-	});
 	if (shouldTrackCommand(abstractCommand, args)) {
 		const commandUsage = makeCommandUsage({
 			userID,
@@ -43,20 +39,30 @@ export async function postCommand({
 			commandName: abstractCommand.name,
 			args,
 			isContinue,
-			flags: null,
-			inhibited
+			inhibited,
+			continueDeltaMillis
 		});
 		try {
 			await prisma.$transaction([
 				prisma.commandUsage.create({
-					data: commandUsage
+					data: commandUsage,
+					select: {
+						id: true
+					}
 				}),
-				prisma.user.update({
+				prisma.user.upsert({
 					where: {
 						id: userID
 					},
-					data: {
+					create: {
+						id: userID,
 						last_command_date: new Date()
+					},
+					update: {
+						last_command_date: new Date()
+					},
+					select: {
+						id: true
 					}
 				})
 			]);

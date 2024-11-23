@@ -1,4 +1,5 @@
-import { ApplicationCommandOptionType, CommandRunOptions } from 'mahoji';
+import type { CommandRunOptions } from '@oldschoolgg/toolkit/util';
+import { ApplicationCommandOptionType } from 'discord.js';
 import { Bank } from 'oldschooljs';
 
 import { ClueTiers } from '../../lib/clues/clueTiers';
@@ -6,7 +7,7 @@ import { PerkTier } from '../../lib/constants';
 import { deferInteraction } from '../../lib/util/interactionReply';
 import { makeBankImage } from '../../lib/util/makeBankImage';
 import { Workers } from '../../lib/workers';
-import { OSBMahojiCommand } from '../lib/util';
+import type { OSBMahojiCommand } from '../lib/util';
 
 function determineLimit(user: MUser) {
 	const perkTier = user.perkTier();
@@ -56,12 +57,12 @@ export const casketCommand: OSBMahojiCommand = {
 
 		await deferInteraction(interaction);
 
-		const [loot, title] = await Workers.casketOpen({ quantity: options.quantity, clueTierID: clueTier.id });
-
-		if (Object.keys(loot.bank).length === 0) return `${title} and got nothing :(`;
+		const [_loot, title] = await Workers.casketOpen({ quantity: options.quantity, clueTierID: clueTier.id });
+		const loot = new Bank(_loot);
+		if (loot.length === 0) return `${title} and got nothing :(`;
 
 		const image = await makeBankImage({
-			bank: new Bank(loot.bank),
+			bank: loot,
 			title,
 			user
 		});

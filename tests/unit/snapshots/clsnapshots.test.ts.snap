@@ -5,27 +5,29 @@ exports[`OSB Collection Log Groups/Categories 1`] = `
 Achievement Diary (48)
 Aerial Fishing (9)
 Alchemical Hydra (11)
-All Pets (56)
+All Pets (59)
+Araxxor (10)
 Barbarian Assault (11)
 Barrows Chests (25)
 Beginner Treasure Trails (16)
-Brimhaven Agility Arena (8)
+Brimhaven Agility Arena (9)
 Bryophyta (1)
 Callisto and Artio (6)
 Camdozaal (10)
-Capes (132)
+Capes (143)
 Castle Wars (39)
 Cerberus (7)
-Chamber's of Xeric (23)
+Chambers of Xeric (23)
 Champion's Challenge (11)
 Chaos Druids (3)
 Chaos Elemental (3)
 Chaos Fanatic (3)
 Chompy Birds (19)
+Colossal Wyrm Agility (8)
 Commander Zilyana (8)
 Corporeal Beast (7)
 Crazy archaeologist (3)
-Creatables (637)
+Creatables (692)
 Creature Creation (7)
 Cyclopes (8)
 Dagannoth Kings (10)
@@ -36,6 +38,8 @@ Elite Treasure Trail Rewards (Rare) (39)
 Elite Treasure Trails (59)
 Farming (141)
 Fishing Trawler (4)
+Forestry (23)
+Fortis Colosseum (9)
 Fossil Island Notes (10)
 General Graardor (8)
 Giant Mole (3)
@@ -43,7 +47,7 @@ Giants' Foundry (9)
 Glough's Experiments (6)
 Gnome Restaurant (4)
 God Wars Dungeon (35)
-Graceful (60)
+Graceful (66)
 Grotesque Guardians (7)
 Guardians of the Rift (17)
 Hallowed Sepulchre (16)
@@ -52,7 +56,7 @@ Hard Treasure Trails (134)
 Hespori (4)
 Implings (12)
 K'ril Tsutsaroth (8)
-Kalphite Queen (5)
+Kalphite Queen (6)
 King Black Dragon (4)
 Kraken (4)
 Kree'arra (8)
@@ -63,9 +67,10 @@ Mahogany Homes (8)
 Master Treasure Trail Rewards (Rare) (45)
 Master Treasure Trails (49)
 Medium Treasure Trails (115)
-Miscellaneous (50)
+Miscellaneous (53)
 Monkey Backpacks (6)
 Motherlode Mine (6)
+My Notes (26)
 Nex (8)
 Obor (1)
 Pest Control (10)
@@ -78,6 +83,7 @@ Rogues' Den (5)
 Rooftop Agility (7)
 Sarachnis (4)
 Scorpia (3)
+Scurrius (2)
 Shades of Mort'ton (14)
 Shared Treasure Trail Rewards (49)
 Shayzien Armour (25)
@@ -85,14 +91,14 @@ Shooting Stars (2)
 Skilling (41)
 Skilling Pets (8)
 Skotizo (6)
-Slayer (65)
+Slayer (74)
 Soul Wars (3)
 Temple Trekking (4)
 Tempoross (12)
 The Fight Caves (2)
 The Forgotten Four (40)
 The Gauntlet (5)
-The Inferno (3)
+The Inferno (2)
 The Leviathan (10)
 The Nightmare (12)
 The Whisperer (10)
@@ -100,12 +106,13 @@ Theatre of Blood (17)
 Thermonuclear smoke devil (5)
 Tithe Farm (7)
 Tombs of Amascut (26)
+Tormented Demons (3)
 Trouble Brewing (30)
 TzHaar (10)
 Vardorvis (10)
 Venenatis and Spindel (6)
 Vet'ion and Calvar'ion (6)
-Volcanic Mine (3)
+Volcanic Mine (4)
 Vorkath (6)
 Wintertodt (10)
 Zalcano (4)
@@ -200,6 +207,11 @@ Ancient astroscope
 Ancient blessing
 Ancient bracers
 Ancient carcanet
+Ancient ceremonial boots
+Ancient ceremonial gloves
+Ancient ceremonial legs
+Ancient ceremonial mask
+Ancient ceremonial top
 Ancient chaps
 Ancient cloak
 Ancient coif
@@ -221,6 +233,32 @@ Ancient ledger
 Ancient medallion
 Ancient mitre
 Ancient note
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
+Ancient page
 Ancient page 1
 Ancient page 2
 Ancient page 3
@@ -249,6 +287,10 @@ Ankou socks
 Ankou top
 Ankou's leggings
 Apprentice wand
+Aranea boots
+Araxyte fang
+Araxyte head
+Araxyte venom sack
 Arcane prayer scroll
 Arcane sigil
 Arceuus banner
@@ -452,8 +494,10 @@ Brimhaven graceful gloves
 Brimhaven graceful hood
 Brimhaven graceful legs
 Brimhaven graceful top
+Brimhaven voucher
 Brine sabre
 Broken dragon hasta
+Broken zombie axe
 Bronze boots
 Bronze defender
 Bronze dragon mask
@@ -478,15 +522,18 @@ Bryophyta's essence
 Bucket helm
 Bucket helm (g)
 Builders supply crate
+Burning claw
 Burnt page
 Butch
 Cabbage round shield
 Cache of runes
+Calcified acorn
 Callisto cub
 Camo bottoms
 Camo helmet
 Camo top
 Cape of skulls
+Cape pouch
 Carpenter's boots
 Carpenter's helmet
 Carpenter's shirt
@@ -520,9 +567,12 @@ Chompy chick
 Chromium ingot
 Claws of callisto
 Climbing boots (g)
+Clothes pouch blueprint
+Coagulated venom
 Coal bag
 Cockatrice head
 Colossal blade
+Colossal wyrm teleport scroll
 Craw's bow (u)
 Crawling hand
 Crier bell
@@ -536,6 +586,9 @@ Cursed phalanx
 Curved bone
 Cutthroat flag
 Cyclops head
+Dagon'hai hat
+Dagon'hai robe bottom
+Dagon'hai robe top
 Dark acorn
 Dark bow
 Dark bow tie
@@ -570,6 +623,7 @@ Dharok's platebody
 Dharok's platelegs
 Digsite teleport
 Dinh's bulwark
+Dizana's quiver (uncharged)
 Double ammo mould
 Draconic visage
 Dragon 2h sword
@@ -593,6 +647,7 @@ Dragon limbs
 Dragon metal lump
 Dragon metal slice
 Dragon pickaxe
+Dragon pickaxe (broken)
 Dragon pickaxe upgrade kit
 Dragon platebody ornament kit
 Dragon scimitar ornament kit
@@ -612,6 +667,7 @@ Drake's tooth
 Dual sai
 Dust battlestaff
 Earth warrior champion scroll
+Echo crystal
 Ectoplasmator
 Ecumenical key
 Elder chaos hood
@@ -649,6 +705,7 @@ Farmer's jacket
 Farmer's strawhat
 Fedora
 Feldip hills teleport
+Felling axe handle
 Fighter hat
 Fighter torso
 Fine cloth
@@ -658,12 +715,20 @@ Fish sack
 Flamtaer bag
 Flared trousers
 Flippers
+Forestry boots
+Forestry hat
+Forestry legs
+Forestry top
+Fox whistle
 Fremennik kilt
+Fresh crab claw
+Fresh crab shell
 Frog slippers
 Frog token
 Frozen cache
 Frozen tablet
 Frozen whip mix
+Funky shaped log
 Fury ornament kit
 Gauntlet cape
 Gem bag
@@ -723,6 +788,7 @@ Golden apron
 Golden armadyl special attack
 Golden bandos special attack
 Golden chef's hat
+Golden pheasant egg
 Golden saradomin special attack
 Golden tench
 Golden zamorak special attack
@@ -794,6 +860,7 @@ Guthix robe legs
 Guthix robe top
 Guthix stole
 Guthixian icon
+Guthixian temple teleport
 Half moon spectacles
 Hallowed focus
 Hallowed grapple
@@ -884,6 +951,7 @@ Jar of souls
 Jar of spirits
 Jar of stone
 Jar of swamp
+Jar of venom
 Jester cape
 Jewel of the sun
 Jogre champion scroll
@@ -935,6 +1003,8 @@ Lil' creator
 Lil' zik
 Lil'viathan
 Little nightmare
+Log basket
+Log brace
 Long bone
 Lost bag
 Lovakengj banner
@@ -1035,10 +1105,14 @@ Mystic robe top (light)
 Nardah teleport
 Navy cavalier
 Nexling
+Nid
 Nightmare staff
 Nihil horn
 Nihil shard
 Noon
+Noxious blade
+Noxious point
+Noxious pommel
 Nunchaku
 Obsidian cape
 Obsidian cape (r)
@@ -1056,7 +1130,7 @@ Olmlet
 Onyx
 Orange boater
 Orange egg sac
-Ore pack
+Ore pack (Giant's Foundry)
 Ornate maul handle
 Osmumten's fang
 Pantaloons
@@ -1085,8 +1159,13 @@ Pet penance queen
 Pet smoke devil
 Pet snakeling
 Pet zilyana
+Petal garland
 Pharaoh's sceptre
 Phasmatys flag
+Pheasant boots
+Pheasant cape
+Pheasant hat
+Pheasant legs
 Phoenix
 Pink boater
 Pink elegant blouse
@@ -1269,6 +1348,8 @@ Saradomin's light
 Scarred tablet
 Scorpia's offspring
 Scribbled note
+Scurrius' spine
+Scurry
 Scythe of vitur (uncharged)
 Seed box
 Seercull
@@ -1330,10 +1411,12 @@ Smiths trousers
 Smiths tunic
 Smoke battlestaff
 Smoke quartz
+Smol heredit
 Smolcano
 Smouldering stone
 Soaked page
 Spectral sigil
+Spider cave teleport
 Spiked manacles
 Spirit angler boots
 Spirit angler headband
@@ -1369,6 +1452,11 @@ Studded body (g)
 Studded body (t)
 Studded chaps (g)
 Studded chaps (t)
+Sturdy beehive parts
+Sunfire fanatic chausses
+Sunfire fanatic cuirass
+Sunfire fanatic helm
+Sunfire splinters
 Superior mining gloves
 Swift blade
 Tackle box
@@ -1388,7 +1476,6 @@ The stuff
 Thieving bag
 Thread of elidinis
 Tiny tempor
-Tokkul
 Toktz-ket-xil
 Toktz-mej-tal
 Toktz-xil-ak
@@ -1396,6 +1483,7 @@ Toktz-xil-ek
 Toktz-xil-ul
 Tome of fire
 Tome of water (empty)
+Tonalztics of ralos (uncharged)
 Top hat
 Top of sceptre
 Torag's hammers
@@ -1403,6 +1491,7 @@ Torag's helm
 Torag's platebody
 Torag's platelegs
 Tormented ornament kit
+Tormented synapse
 Torn prayer scroll
 Torture ornament kit
 Torva full helm (damaged)
@@ -1417,6 +1506,7 @@ Tumeken's shadow (uncharged)
 Twisted ancestral colour kit
 Twisted bow
 Twisted buckler
+Twitcher's gloves
 Tyrannical ring
 Tzhaar-ket-om
 Tzhaar-ket-om ornament kit
@@ -1427,6 +1517,12 @@ Uncut onyx
 Unholy blessing
 Unsired
 Uri's hat
+Varlamore graceful boots
+Varlamore graceful cape
+Varlamore graceful gloves
+Varlamore graceful hood
+Varlamore graceful legs
+Varlamore graceful top
 Venator shard
 Venator vestige
 Venenatis spiderling

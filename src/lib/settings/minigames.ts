@@ -1,10 +1,8 @@
-import { Minigame } from '@prisma/client';
-
-import { prisma } from './prisma';
+import type { Minigame } from '@prisma/client';
 
 export type MinigameName = keyof Omit<Minigame, 'id' | 'user_id'>;
 
-export interface BotMinigame {
+interface BotMinigame {
 	name: string;
 	aliases: string[];
 	column: MinigameName;
@@ -15,6 +13,7 @@ export interface MinigameScore {
 	score: number;
 }
 
+export const minigameColumnToNameMap = new Map<string, string>();
 export const Minigames: readonly BotMinigame[] = [
 	{
 		name: 'Tithe farm',
@@ -97,12 +96,12 @@ export const Minigames: readonly BotMinigame[] = [
 		column: 'castle_wars'
 	},
 	{
-		name: "Chamber's of Xeric",
+		name: 'Chambers of Xeric',
 		aliases: ['cox', 'raid1', 'raids1', 'chambers', 'xeric'],
 		column: 'raids'
 	},
 	{
-		name: "Chamber's of Xeric - Challenge Mode",
+		name: 'Chambers of Xeric - Challenge Mode',
 		aliases: ['coxcm', 'raid1cm', 'raids1cm', 'chamberscm', 'xericcm'],
 		column: 'raids_challenge_mode'
 	},
@@ -190,8 +189,17 @@ export const Minigames: readonly BotMinigame[] = [
 		name: 'Tombs of Amascut',
 		aliases: ['toa', 'tombs of amascut'],
 		column: 'tombs_of_amascut'
+	},
+	{
+		name: 'Fortis Colosseum',
+		aliases: ['colo'],
+		column: 'colosseum'
 	}
 ];
+
+for (const minigame of Minigames) {
+	minigameColumnToNameMap.set(minigame.column, minigame.name);
+}
 
 export async function getMinigameScore(userID: string, minigame: MinigameName) {
 	const MinigameEntity = await getMinigameEntity(userID);

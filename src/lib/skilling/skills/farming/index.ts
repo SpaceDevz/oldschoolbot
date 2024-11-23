@@ -3,7 +3,8 @@ import { CropUpgradeType } from '@prisma/client';
 import { Emoji } from '../../../constants';
 import getOSItem from '../../../util/getOSItem';
 import itemID from '../../../util/itemID';
-import { Plant, SkillsEnum } from '../../types';
+import type { Plant } from '../../types';
+import { SkillsEnum } from '../../types';
 import allotmentPlants from './allotments';
 import fruitTrees from './fruitTrees';
 import herbPlants from './herbPlants';
@@ -53,8 +54,8 @@ export const CompostTiers = [
 
 for (const plant of plants) {
 	if (plant.outputCrop) allFarmingItems.push(plant.outputCrop);
-	for (const key of Object.keys(plant.inputItems.bank)) {
-		allFarmingItems.push(Number(key));
+	for (const [item] of plant.inputItems.items()) {
+		allFarmingItems.push(item.id);
 	}
 	if (plant.outputLogs) allFarmingItems.push(plant.outputLogs);
 	if (plant.outputRoots) allFarmingItems.push(plant.outputRoots);

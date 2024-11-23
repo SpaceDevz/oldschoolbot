@@ -1,5 +1,5 @@
+import { resolveItems } from 'oldschooljs/dist/util/util';
 import itemID from '../util/itemID';
-import resolveItems from '../util/resolveItems';
 import {
 	gracefulCapes,
 	gracefulFeet,
@@ -35,7 +35,8 @@ const slayerHelmSimilar = resolveItems([
 	'Twisted slayer helmet',
 	'Tztok slayer helmet',
 	'Vampyric slayer helmet',
-	'Tzkal slayer helmet'
+	'Tzkal slayer helmet',
+	'Araxyte slayer helmet'
 ]);
 const slayerHelmSimilarI = resolveItems([
 	'Black slayer helmet (i)',
@@ -48,7 +49,8 @@ const slayerHelmSimilarI = resolveItems([
 	'Slayer helmet (i)',
 	'Tztok slayer helmet (i)',
 	'Vampyric slayer helmet (i)',
-	'Tzkal slayer helmet (i)'
+	'Tzkal slayer helmet (i)',
+	'Araxyte slayer helmet (i)'
 ]);
 const bowfaCorruptSimilar = resolveItems([
 	25_869, // Red, 'duplicate' according to osrsbox item-search
@@ -60,9 +62,30 @@ const bowfaCorruptSimilar = resolveItems([
 	25_894, // Light blue
 	25_896 // Dark blue
 ]);
+const fellingAxe = resolveItems([
+	'Bronze felling axe',
+	'Iron felling axe',
+	'Steel felling axe',
+	'Black felling axe',
+	'Mithril felling axe',
+	'Adamant felling axe',
+	'Rune felling axe',
+	'Dragon felling axe',
+	'Crystal felling axe',
+	'3rd age felling axe'
+]);
 
 const source: [string, (string | number)[]][] = [
-	['Rune axe', ['Gilded axe']],
+	['Bronze felling axe', fellingAxe],
+	['Bronze axe', ['Bronze felling axe']],
+	['Iron axe', ['Iron felling axe']],
+	['Steel axe', ['Steel felling axe']],
+	['Black axe', ['Black felling axe']],
+	['Mithril axe', ['Mithril felling axe']],
+	['Adamant axe', ['Adamant felling axe']],
+	['Rune axe', ['Rune felling axe', 'Gilded axe']],
+	['Dragon axe', ['Dragon felling axe', '3rd age axe', '3rd age felling axe']],
+	['Crystal axe', ['Crystal felling axe']],
 	['Rune pickaxe', ['Gilded pickaxe']],
 	['Dragon full helm', ['Dragon full helm (g)']],
 	['Dragon chainbody', ['Dragon chainbody (g)']],
@@ -87,14 +110,13 @@ const source: [string, (string | number)[]][] = [
 	['Tzhaar-ket-om', ['Tzhaar-ket-om (t)']],
 	['Berserker necklace', ['Berserker necklace (or)']],
 	['Amulet of fury', ['Amulet of fury (or)', 'Amulet of blood fury']],
-	['Amulet of torture', ['Amulet of torture (or)']],
+	['Amulet of torture', ['Amulet of torture (or)', 'Amulet of rancour', 'Amulet of rancour (s)']],
 	['Tormented bracelet', ['Tormented bracelet (or)']],
 	['Necklace of anguish', ['Necklace of anguish (or)']],
 	['Occult necklace', ['Occult necklace (or)']],
 	['Dragon hunter crossbow', ['Dragon hunter crossbow (t)', 'Dragon hunter crossbow (b)']],
 	['Armadyl crossbow', ['Zaryte crossbow']],
-	['Dragon pickaxe', ['Dragon pickaxe(or)', 12_797, '3rd age pickaxe', 'Infernal pickaxe']],
-	['Dragon axe', ['3rd age axe']],
+	['Dragon pickaxe', ['Dragon pickaxe(or)', 12_797, 'Crystal pickaxe', '3rd age pickaxe', 'Infernal pickaxe']],
 	['Steam battlestaff', [12_795]],
 	['Lava battlestaff', [21_198]],
 	['Odium ward', [12_807]],
@@ -171,7 +193,14 @@ const source: [string, (string | number)[]][] = [
 	["Ava's accumulator", ['Accumulator max cape']],
 	[
 		"Ava's assembler",
-		['Assembler max cape', 'Assembler max cape (l)', 'Masori assembler', 'Masori assembler max cape']
+		[
+			'Assembler max cape',
+			'Assembler max cape (l)',
+			'Masori assembler',
+			'Masori assembler max cape',
+			"Blessed dizana's quiver",
+			"Dizana's max cape"
+		]
 	],
 	['Mythical cape', ['Mythical max cape']],
 	['Achievement diary cape', ['Achievement diary cape(t)']],
@@ -345,12 +374,22 @@ const source: [string, (string | number)[]][] = [
 	["Thammaron's sceptre", ['Accursed sceptre']],
 	['Torva full helm', ['Sanguine torva full helm']],
 	['Torva platebody', ['Sanguine torva platebody']],
-	['Torva platelegs', ['Sanguine torva platelegs']]
+	['Torva platelegs', ['Sanguine torva platelegs']],
+
+	['Lumberjack hat', ['Forestry hat']],
+	['Lumberjack top', ['Forestry top']],
+	['Lumberjack legs', ['Forestry legs']],
+	['Lumberjack boots', ['Forestry boots']],
+	['Log basket', ['Forestry basket']],
+	['Forestry kit', ['Forestry basket']],
+	['Ring of stone', ['Ring of coins', 'Crate ring', 'Ring of nature', 'Snowman ring', 'Ring of 3rd age']],
+
+	['Ring of suffering (i)', ['Ring of suffering (ri)']],
+	['Amulet of rancour', ['Amulet of rancour (s)']],
+	['Skull sceptre', ['Skull sceptre (i)']]
 ];
 
-export const similarItems: Map<number, number[]> = new Map(
-	source.map(entry => [itemID(entry[0]), resolveItems(entry[1])])
-);
+const similarItems: Map<number, number[]> = new Map(source.map(entry => [itemID(entry[0]), resolveItems(entry[1])]));
 
 export const inverseSimilarItems: Map<number, Set<number>> = new Map();
 for (const [baseItem, similarItems] of source) {
@@ -358,11 +397,11 @@ for (const [baseItem, similarItems] of source) {
 		if (!inverseSimilarItems.get(item)) {
 			inverseSimilarItems.set(item, new Set());
 		}
-		inverseSimilarItems.get(item)!.add(itemID(baseItem));
+		inverseSimilarItems.get(item)?.add(itemID(baseItem));
 	}
 }
 
 export function getSimilarItems(itemID: number): number[] {
 	const similars = similarItems.get(itemID);
-	return similars ? [itemID, ...similars] : [];
+	return similars ? [itemID, ...similars] : [itemID];
 }

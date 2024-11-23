@@ -1,20 +1,13 @@
-import { channelIsSendable } from '@oldschoolgg/toolkit';
-import {
-	ActionRowBuilder,
-	ButtonBuilder,
-	ButtonInteraction,
-	ButtonStyle,
-	ChatInputCommandInteraction,
-	ComponentType,
-	InteractionResponseType,
-	Routes
-} from 'discord.js';
-import { noOp, Time } from 'e';
+import { channelIsSendable } from '@oldschoolgg/toolkit/util';
+import type { ButtonInteraction, Channel, ChatInputCommandInteraction, ComponentType } from 'discord.js';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, InteractionResponseType, Routes } from 'discord.js';
+import { Time, noOp } from 'e';
 
 import { SILENT_ERROR } from '../constants';
 import { deferInteraction, interactionReply } from './interactionReply';
+import { logErrorForInteraction } from './logError';
 
-async function silentButtonAck(interaction: ButtonInteraction) {
+export async function silentButtonAck(interaction: ButtonInteraction) {
 	return globalClient.rest.post(Routes.interactionCallback(interaction.id, interaction.token), {
 		body: {
 			type: InteractionResponseType.DeferredMessageUpdate
@@ -27,12 +20,22 @@ export async function handleMahojiConfirmation(
 	str: string,
 	_users?: string[]
 ) {
-	const channel = globalClient.channels.cache.get(interaction.channelId.toString());
-	if (!channelIsSendable(channel)) throw new Error('Channel for confirmation not found.');
+	let channel: Channel | null = globalClient.channels.cache.get(interaction.channelId) ?? null;
+	if (!channel) {
+		channel = await globalClient.channels.fetch(interaction.channelId).catch(() => null);
+	}
+	if (!channelIsSendable(channel)) {
+		const error = new Error('Channel for confirmation not found.');
+		logErrorForInteraction(error, interaction, {
+			str: str.slice(0, 200),
+			users: _users?.join(',').slice(0, 20) ?? 'N/A'
+		});
+		throw error;
+	}
 	await deferInteraction(interaction);
 
 	const users = _users ?? [interaction.user.id];
-	let confirmed: string[] = [];
+	const confirmed: string[] = [];
 	const isConfirmed = () => confirmed.length === users.length;
 	const confirmMessage = await channel.send({
 		content: str,

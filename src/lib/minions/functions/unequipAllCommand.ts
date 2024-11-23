@@ -1,20 +1,25 @@
-import { toTitleCase } from '@oldschoolgg/toolkit';
+import { toTitleCase } from '@oldschoolgg/toolkit/util';
 import { Bank } from 'oldschooljs';
 
-import { GearSetupType, GearSetupTypes } from '../../gear/types';
+import type { GearSetupType } from '../../gear/types';
+import { GearSetupTypes } from '../../gear/types';
 import { defaultGear } from '../../structures/Gear';
 
-export async function unEquipAllCommand(userID: string, gearType: GearSetupType | undefined): Promise<string> {
+export async function unEquipAllCommand(
+	userID: string,
+	gearType: GearSetupType | undefined,
+	bypassBusy?: boolean
+): Promise<string> {
 	if (!gearType || !GearSetupTypes.includes(gearType)) {
 		return `That's not a valid setup, the valid setups are: ${GearSetupTypes.join(', ')}.`;
 	}
 	const user = await mUserFetch(userID);
-	if (user.minionIsBusy) {
+	if (!bypassBusy && user.minionIsBusy) {
 		return `${user.minionName} is currently out on a trip, so you can't change their gear!`;
 	}
 	const currentEquippedGear = user.gear[gearType];
 
-	let refund = new Bank();
+	const refund = new Bank();
 	for (const val of Object.values(currentEquippedGear.raw())) {
 		if (!val) continue;
 		refund.add(val.item, val.quantity);

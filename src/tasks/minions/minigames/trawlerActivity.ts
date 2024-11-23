@@ -5,7 +5,7 @@ import { ArdougneDiary, userhasDiaryTier } from '../../../lib/diaries';
 import { incrementMinigameScore } from '../../../lib/settings/settings';
 import { fishingTrawlerLoot } from '../../../lib/simulation/fishingTrawler';
 import { SkillsEnum } from '../../../lib/skilling/types';
-import { ActivityTaskOptionsWithQuantity } from '../../../lib/types/minions';
+import type { ActivityTaskOptionsWithQuantity } from '../../../lib/types/minions';
 import { handleTripFinish } from '../../../lib/util/handleTripFinish';
 import { makeBankImage } from '../../../lib/util/makeBankImage';
 import { anglerBoostPercent } from '../../../mahoji/mahojiSettings';
@@ -19,7 +19,6 @@ export const trawlerTask: MinionTask = {
 
 		const fishingLevel = user.skillLevel(SkillsEnum.Fishing);
 
-		const allItemsOwnedBank = user.allItemsOwned.bank;
 		const loot = new Bank();
 
 		let totalXP = 0;
@@ -28,7 +27,7 @@ export const trawlerTask: MinionTask = {
 			const { loot: _loot, xp } = fishingTrawlerLoot(
 				fishingLevel,
 				hasEliteArdy,
-				loot.clone().add(allItemsOwnedBank)
+				loot.clone().add(user.allItemsOwned)
 			);
 			totalXP += xp;
 			loot.add(_loot);
@@ -42,9 +41,10 @@ export const trawlerTask: MinionTask = {
 
 		let str = `${user}, ${
 			user.minionName
-		} finished completing the Fishing Trawler ${quantity}x times. You received ${await user.addXP({
+		} finished completing the Fishing Trawler ${quantity}x times. ${await user.addXP({
 			skillName: SkillsEnum.Fishing,
-			amount: totalXP
+			amount: totalXP,
+			duration: data.duration
 		})}`;
 
 		if (xpBonusPercent > 0) {
@@ -58,14 +58,6 @@ export const trawlerTask: MinionTask = {
 			collectionLog: true,
 			itemsToAdd: loot
 		});
-
-		const currentLevel = user.skillLevel(SkillsEnum.Fishing);
-		await user.addXP({ skillName: SkillsEnum.Fishing, amount: totalXP, source: 'FishingTrawler' });
-		const newLevel = user.skillLevel(SkillsEnum.Fishing);
-
-		if (currentLevel !== newLevel) {
-			str += `\n\n${user.minionName}'s Fishing level is now ${newLevel}!`;
-		}
 
 		const image = await makeBankImage({
 			bank: itemsAdded,

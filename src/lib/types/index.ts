@@ -1,23 +1,8 @@
-import { SkillsEnum } from '../skilling/types';
+import type { SkillsEnum } from '../skilling/types';
 
 export interface ItemBank {
 	[key: string]: number;
 }
-
-export interface Patron {
-	patreonID: string;
-	discordID?: string;
-	entitledTiers: string[];
-	lastChargeDate: string;
-	lastChargeStatus: string;
-	lifeTimeSupportCents: number;
-	patronStatus: string;
-	pledgeRelationshipStart: string;
-}
-
-type ResolvableItem = number | string;
-export type ArrayItemsResolvable = (ResolvableItem | ResolvableItem[])[];
-export type ArrayItemsResolved = (number | number[])[];
 
 export interface MakePartyOptions {
 	maxSize: number;
@@ -32,6 +17,9 @@ export interface MakePartyOptions {
 export type Skills = Partial<{
 	[key in SkillsEnum]: number;
 }>;
+
+export type SkillRequirements = Skills & { combat?: number };
+export type SkillsRequired = Required<Skills>;
 
 export type CategoryFlag =
 	| 'minion'
@@ -49,5 +37,4 @@ export interface IDiscordSettings {
 	Channels: Record<string, string>;
 	Emojis: Record<string, string>;
 	SupportServer: string;
-	BotID: string;
 }

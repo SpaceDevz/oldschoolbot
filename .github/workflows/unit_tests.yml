@@ -1,0 +1,48 @@
+name: Unit Tests
+
+on:
+  push:
+    branches:
+      - master
+      - bso
+    paths-ignore:
+      - "docs/**"
+  pull_request:
+    paths-ignore:
+      - "docs/**"
+
+jobs:
+  unit_tests:
+    name: Node v${{ matrix.node_version }} - ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      matrix:
+        node_version: [20.15.0]
+        os: [ubuntu-latest]
+    concurrency:
+      group: ${{ github.ref_name }}-unittests
+      cancel-in-progress: true
+    steps:
+      - name: Checkout Project
+        uses: actions/checkout@v4
+      - run: corepack enable && corepack install
+      - name: Use Node.js ${{ matrix.node_version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node_version }}
+          cache: pnpm
+      - name: Restore CI Cache
+        uses: actions/cache@v4
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-${{ matrix.node_version }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+      - name: Copy Configuration
+        run: |
+          cp .env.test .env
+      - name: Install Dependencies
+        run: pnpm install
+      - name: Build
+        run: pnpm monorepo:build
+      - name: Test
+        run: pnpm monorepo:test

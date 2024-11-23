@@ -1,12 +1,11 @@
-import { stringMatches } from '@oldschoolgg/toolkit';
-import { ChatInputCommandInteraction } from 'discord.js';
+import { stringMatches } from '@oldschoolgg/toolkit/util';
+import type { ChatInputCommandInteraction } from 'discord.js';
 import { Bank } from 'oldschooljs';
 
 import { BitField } from '../../../lib/constants';
-import { Favours, gotFavour } from '../../../lib/minions/data/kourendFavour';
-import { getPOHObject, GroupedPohObjects, itemsNotRefundable, PoHObjects } from '../../../lib/poh';
+import { GroupedPohObjects, PoHObjects, getPOHObject, itemsNotRefundable } from '../../../lib/poh';
 import { pohImageGenerator } from '../../../lib/pohImage';
-import { prisma } from '../../../lib/settings/prisma';
+
 import { SkillsEnum } from '../../../lib/skilling/types';
 import { formatSkillRequirements, itemNameFromID } from '../../../lib/util';
 import getOSItem from '../../../lib/util/getOSItem';
@@ -98,12 +97,6 @@ export async function pohBuildCommand(interaction: ChatInputCommandInteraction, 
 		return `You need level ${formatSkillRequirements(obj.level)} to build a ${obj.name} in your house.`;
 	}
 
-	if (obj.id === 29_149 || obj.id === 31_858) {
-		const [hasFavour, requiredPoints] = gotFavour(user, Favours.Arceuus, 100);
-		if (!hasFavour) {
-			return `Build Dark Altar/Occult altar requires ${requiredPoints}% Arceuus Favour.`;
-		}
-	}
 	const inPlace = poh[obj.slot];
 	if (obj.slot === 'mounted_item' && inPlace !== null) {
 		return 'You already have a item mount built.';
@@ -116,7 +109,7 @@ export async function pohBuildCommand(interaction: ChatInputCommandInteraction, 
 	}
 
 	if (obj.itemCost) {
-		if (!user.bankWithGP.has(obj.itemCost.bank)) {
+		if (!user.bankWithGP.has(obj.itemCost)) {
 			return `You don't have enough items to build a ${obj.name}, you need ${obj.itemCost}.`;
 		}
 		let str = `${user}, please confirm that you want to build a ${obj.name} using ${obj.itemCost}.`;
@@ -132,7 +125,7 @@ export async function pohBuildCommand(interaction: ChatInputCommandInteraction, 
 	if (inPlace !== null) {
 		const inPlaceObj = getPOHObject(inPlace);
 		if (inPlaceObj.refundItems && inPlaceObj.itemCost) {
-			const itemsToRefund = new Bank(inPlaceObj.itemCost.bank).remove(itemsNotRefundable);
+			const itemsToRefund = new Bank(inPlaceObj.itemCost).remove(itemsNotRefundable);
 			if (itemsToRefund.length > 0) {
 				refunded = itemsToRefund;
 				await user.addItemsToBank({ items: itemsToRefund, collectionLog: false });
@@ -235,7 +228,7 @@ export async function pohDestroyCommand(user: MUser, name: string) {
 
 	let str = `You removed a ${obj.name} from your house.`;
 	if (obj.refundItems && obj.itemCost) {
-		const itemsToRefund = new Bank(obj.itemCost.bank).remove(itemsNotRefundable);
+		const itemsToRefund = new Bank(obj.itemCost).remove(itemsNotRefundable);
 		if (itemsToRefund.length > 0) {
 			str += `\n\nYou were refunded: ${itemsToRefund}.`;
 			await user.addItemsToBank({ items: itemsToRefund, collectionLog: false });

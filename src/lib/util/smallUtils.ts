@@ -1,16 +1,15 @@
-import { exec } from 'node:child_process';
-
-import { miniID, toTitleCase } from '@oldschoolgg/toolkit';
+import { type CommandResponse, deepMerge, miniID, stripEmojis, toTitleCase } from '@oldschoolgg/toolkit/util';
 import type { Prisma } from '@prisma/client';
-import { ButtonBuilder, ButtonStyle, time } from 'discord.js';
-import { clamp, objectEntries, Time } from 'e';
-import { Bank, Items } from 'oldschooljs';
-import { ItemBank } from 'oldschooljs/dist/meta/types';
+import { AlignmentEnum, AsciiTable3 } from 'ascii-table3';
+import { ButtonBuilder, ButtonStyle, type InteractionReplyOptions } from 'discord.js';
+import { clamp, objectEntries } from 'e';
+import { type ArrayItemsResolved, Bank, type ItemBank, Items, getItemOrThrow } from 'oldschooljs';
 import { MersenneTwister19937, shuffle } from 'random-js';
+import z from 'zod';
 
 import { skillEmoji } from '../data/emojis';
-import type { ArrayItemsResolved, Skills } from '../types';
-import getOSItem from './getOSItem';
+import type { UserFullGearSetup } from '../gear/types';
+import type { SkillRequirements, Skills } from '../types';
 
 export function itemNameFromID(itemID: number | string) {
 	return Items.get(itemID)?.name;
@@ -36,7 +35,7 @@ export function formatItemBoosts(items: ItemBank[]) {
 		const bonusStr = [];
 
 		for (const [itemID, boostAmount] of itemEntries) {
-			bonusStr.push(`${boostAmount}% for ${itemNameFromID(parseInt(itemID))}`);
+			bonusStr.push(`${boostAmount}% for ${itemNameFromID(Number.parseInt(itemID))}`);
 		}
 
 		if (multiple) {
@@ -48,66 +47,16 @@ export function formatItemBoosts(items: ItemBank[]) {
 	return str.join(', ');
 }
 
-export function calcPerHour(value: number, duration: number) {
-	return (value / (duration / Time.Minute)) * 60;
-}
-
-export function formatDuration(ms: number, short = false) {
-	if (ms < 0) ms = -ms;
-	const time = {
-		day: Math.floor(ms / 86_400_000),
-		hour: Math.floor(ms / 3_600_000) % 24,
-		minute: Math.floor(ms / 60_000) % 60,
-		second: Math.floor(ms / 1000) % 60
-	};
-	const shortTime = {
-		d: Math.floor(ms / 86_400_000),
-		h: Math.floor(ms / 3_600_000) % 24,
-		m: Math.floor(ms / 60_000) % 60,
-		s: Math.floor(ms / 1000) % 60
-	};
-	let nums = Object.entries(short ? shortTime : time).filter(val => val[1] !== 0);
-	if (nums.length === 0) return '1 second';
-	return nums
-		.map(([key, val]) => `${val}${short ? '' : ' '}${key}${val === 1 || short ? '' : 's'}`)
-		.join(short ? '' : ', ');
-}
-
 export function formatSkillRequirements(reqs: Record<string, number>, emojis = true) {
-	let arr = [];
+	const arr = [];
 	for (const [name, num] of objectEntries(reqs)) {
 		arr.push(`${emojis ? ` ${(skillEmoji as any)[name]} ` : ''}**${num}** ${toTitleCase(name)}`);
 	}
 	return arr.join(', ');
 }
 
-export function hasSkillReqs(user: MUser, reqs: Skills): [boolean, string | null] {
-	const hasReqs = user.hasSkillReqs(reqs);
-	if (!hasReqs) {
-		return [false, formatSkillRequirements(reqs)];
-	}
-	return [true, null];
-}
-
-/**
- * Scale percentage exponentially
- *
- * @param decay Between 0.01 and 0.05; bigger means more penalty.
- * @param percent The percent to scale
- * @returns percent
- */
-export function exponentialPercentScale(percent: number, decay = 0.021) {
-	return 100 * Math.pow(Math.E, -decay * (100 - percent));
-}
-
-export function normal(mu = 0, sigma = 1, nsamples = 6) {
-	let run_total = 0;
-
-	for (let i = 0; i < nsamples; i++) {
-		run_total += Math.random();
-	}
-
-	return (sigma * (run_total - nsamples / 2)) / (nsamples / 2) + mu;
+export function pluraliseItemName(name: string): string {
+	return name + (name.endsWith('s') ? '' : 's');
 }
 
 export function shuffleRandom<T>(input: number, arr: readonly T[]): T[] {
@@ -115,20 +64,12 @@ export function shuffleRandom<T>(input: number, arr: readonly T[]): T[] {
 	return shuffle(engine, [...arr]);
 }
 
-export function averageBank(bank: Bank, kc: number) {
-	let newBank = new Bank();
-	for (const [item, qty] of bank.items()) {
-		newBank.add(item.id, Math.floor(qty / kc));
-	}
-	return newBank;
-}
-
 const shortItemNames = new Map([
-	[getOSItem('Saradomin brew(4)'), 'Brew'],
-	[getOSItem('Super restore(4)'), 'Restore'],
-	[getOSItem('Super combat potion(4)'), 'Super combat'],
-	[getOSItem('Sanfew serum(4)'), 'Sanfew'],
-	[getOSItem('Ranging potion(4)'), 'Range pot']
+	[getItemOrThrow('Saradomin brew(4)'), 'Brew'],
+	[getItemOrThrow('Super restore(4)'), 'Restore'],
+	[getItemOrThrow('Super combat potion(4)'), 'Super combat'],
+	[getItemOrThrow('Sanfew serum(4)'), 'Sanfew'],
+	[getItemOrThrow('Ranging potion(4)'), 'Range pot']
 ]);
 
 export function bankToStrShortNames(bank: Bank) {
@@ -163,19 +104,7 @@ export function makeAutoFarmButton() {
 export const SQL_sumOfAllCLItems = (clItems: number[]) =>
 	`NULLIF(${clItems.map(i => `COALESCE(("collectionLogBank"->>'${i}')::int, 0)`).join(' + ')}, 0)`;
 
-export const generateGrandExchangeID = () => miniID(5).toLowerCase();
-
-export function tailFile(fileName: string, numLines: number): Promise<string> {
-	return new Promise((resolve, reject) => {
-		exec(`tail -n ${numLines} ${fileName}`, (error, stdout) => {
-			if (error) {
-				reject(error);
-			} else {
-				resolve(stdout);
-			}
-		});
-	});
-}
+export const generateGrandExchangeID = () => miniID(6).toLowerCase();
 
 export function getToaKCs(toaRaidLevelsBank: Prisma.JsonValue) {
 	let entryKC = 0;
@@ -195,30 +124,6 @@ export function getToaKCs(toaRaidLevelsBank: Prisma.JsonValue) {
 	}
 	return { entryKC, normalKC, expertKC, totalKC: entryKC + normalKC + expertKC };
 }
-export const alphabeticalSort = (a: string, b: string) => a.localeCompare(b);
-
-export function dateFm(date: Date) {
-	return `${time(date, 'T')} (${time(date, 'R')})`;
-}
-
-export function getInterval(intervalHours: number) {
-	const currentTime = new Date();
-	const currentHour = currentTime.getHours();
-
-	// Find the nearest interval start hour (0, intervalHours, 2*intervalHours, etc.)
-	const startHour = currentHour - (currentHour % intervalHours);
-	const startInterval = new Date(currentTime);
-	startInterval.setHours(startHour, 0, 0, 0);
-
-	const endInterval = new Date(startInterval);
-	endInterval.setHours(startHour + intervalHours);
-
-	return {
-		start: startInterval,
-		end: endInterval,
-		nextResetStr: dateFm(endInterval)
-	};
-}
 
 export function calculateSimpleMonsterDeathChance({
 	hardness,
@@ -235,21 +140,118 @@ export function calculateSimpleMonsterDeathChance({
 }): number {
 	if (!currentKC) currentKC = 1;
 	currentKC = Math.max(1, currentKC);
-	let baseDeathChance = Math.min(highestDeathChance, (100 * hardness) / steepness);
+	const baseDeathChance = Math.min(highestDeathChance, (100 * hardness) / steepness);
 	const maxScalingKC = 5 + (75 * hardness) / steepness;
-	let reductionFactor = Math.min(1, currentKC / maxScalingKC);
-	let deathChance = baseDeathChance - reductionFactor * (baseDeathChance - lowestDeathChance);
+	const reductionFactor = Math.min(1, currentKC / maxScalingKC);
+	const deathChance = baseDeathChance - reductionFactor * (baseDeathChance - lowestDeathChance);
 	return clamp(deathChance, lowestDeathChance, highestDeathChance);
 }
 
-export function addBanks(banks: ItemBank[]): Bank {
+const TOO_LONG_STR = 'The result was too long (over 2000 characters), please read the attached file.';
+
+export function returnStringOrFile(string: string | InteractionReplyOptions): Awaited<CommandResponse> {
+	if (typeof string === 'string') {
+		if (string.length > 2000) {
+			return {
+				content: TOO_LONG_STR,
+				files: [{ attachment: Buffer.from(string), name: 'result.txt' }]
+			};
+		}
+		return string;
+	}
+	if (string.content && string.content.length > 2000) {
+		return deepMerge(
+			string,
+			{
+				content: TOO_LONG_STR,
+				files: [{ attachment: Buffer.from(string.content), name: 'result.txt' }]
+			},
+			{ clone: false }
+		);
+	}
+	return string;
+}
+
+export function makeTable(headers: string[], rows: unknown[][]) {
+	return new AsciiTable3()
+		.setStyle('github-markdown')
+		.setHeading(...headers)
+		.setAlign(1, AlignmentEnum.RIGHT)
+		.setAlign(2, AlignmentEnum.CENTER)
+		.setAlign(3, AlignmentEnum.LEFT)
+		.addRowMatrix(rows)
+		.toString();
+}
+
+export const staticTimeIntervals = ['day', 'week', 'month'] as const;
+type StaticTimeInterval = (typeof staticTimeIntervals)[number];
+export function parseStaticTimeInterval(input: string): input is StaticTimeInterval {
+	if (staticTimeIntervals.includes(input as any)) {
+		return true;
+	}
+	return false;
+}
+
+export function hasSkillReqsRaw(skills: SkillRequirements, requirements: SkillRequirements) {
+	for (const [skillName, requiredLevel] of objectEntries(requirements)) {
+		const lvl = skills[skillName];
+		if (!lvl || lvl < requiredLevel!) {
+			return false;
+		}
+	}
+	return true;
+}
+
+export function hasSkillReqs(user: MUser, reqs: Skills): [boolean, string | null] {
+	const hasReqs = hasSkillReqsRaw(user.skillsAsRequirements, reqs);
+	if (!hasReqs) {
+		return [false, formatSkillRequirements(reqs)];
+	}
+	return [true, null];
+}
+
+export function fullGearToBank(gear: UserFullGearSetup) {
 	const bank = new Bank();
-	for (const _bank of banks) {
-		bank.add(_bank);
+	for (const setup of Object.values(gear)) {
+		for (const equipped of Object.values(setup)) {
+			if (equipped?.item) {
+				bank.add(equipped.item, equipped.quantity);
+			}
+		}
 	}
 	return bank;
 }
 
-export function isValidDiscordSnowflake(snowflake: string): boolean {
-	return /^\d{17,19}$/.test(snowflake);
+export function objHasAnyPropInCommon(obj: object, other: object): boolean {
+	for (const key of Object.keys(obj)) {
+		if (key in other) return true;
+	}
+	return false;
+}
+
+export const zodEnum = <T>(arr: T[] | readonly T[]): [T, ...T[]] => arr as [T, ...T[]];
+
+export function numberEnum<T extends number>(values: readonly T[]) {
+	const set = new Set<unknown>(values);
+	return (v: number, ctx: z.RefinementCtx): v is T => {
+		if (!set.has(v)) {
+			ctx.addIssue({
+				code: z.ZodIssueCode.invalid_enum_value,
+				received: v,
+				options: [...values]
+			});
+		}
+		return z.NEVER;
+	};
+}
+
+export function isValidNickname(str?: string) {
+	return Boolean(
+		str &&
+			typeof str === 'string' &&
+			str.length >= 2 &&
+			str.length <= 30 &&
+			['\n', '`', '@', '<', ':'].every(char => !str.includes(char)) &&
+			stripEmojis(str).length === str.length
+	);
 }

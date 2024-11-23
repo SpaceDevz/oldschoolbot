@@ -1,60 +1,37 @@
-import { SimpleTable } from '@oldschoolgg/toolkit';
 import { randInt } from 'e';
 import { Bank } from 'oldschooljs';
 
+import { calcPerHour } from '@oldschoolgg/toolkit';
 import { Emoji, Events } from '../../../lib/constants';
 import { trackLoot } from '../../../lib/lootTrack';
-import { getMinigameScore, incrementMinigameScore } from '../../../lib/settings/settings';
+import { incrementMinigameScore } from '../../../lib/settings/settings';
+import { winterTodtPointsTable } from '../../../lib/simulation/simulatedKillables';
 import { WintertodtCrate } from '../../../lib/simulation/wintertodt';
 import Firemaking from '../../../lib/skilling/skills/firemaking';
 import { SkillsEnum } from '../../../lib/skilling/types';
-import { ActivityTaskOptionsWithQuantity } from '../../../lib/types/minions';
+import type { ActivityTaskOptionsWithQuantity } from '../../../lib/types/minions';
 import { handleTripFinish } from '../../../lib/util/handleTripFinish';
 import { makeBankImage } from '../../../lib/util/makeBankImage';
 import { updateBankSetting } from '../../../lib/util/updateBankSetting';
-
-const PointsTable = new SimpleTable<number>()
-	.add(420)
-	.add(470)
-	.add(500)
-	.add(505)
-	.add(510)
-	.add(520)
-	.add(550)
-	.add(560)
-	.add(590)
-	.add(600)
-	.add(620)
-	.add(650)
-	.add(660)
-	.add(670)
-	.add(680)
-	.add(700)
-	.add(720)
-	.add(740)
-	.add(750)
-	.add(780)
-	.add(850);
 
 export const wintertodtTask: MinionTask = {
 	type: 'Wintertodt',
 	async run(data: ActivityTaskOptionsWithQuantity) {
 		const { userID, channelID, quantity } = data;
 		const user = await mUserFetch(userID);
-		const currentLevel = user.skillLevel(SkillsEnum.Firemaking);
-
-		let loot = new Bank();
+		const { newScore } = await incrementMinigameScore(user.id, 'wintertodt', quantity);
+		const loot = new Bank();
 
 		let totalPoints = 0;
 
 		for (let i = 0; i < quantity; i++) {
-			const points = PointsTable.rollOrThrow();
+			const points = winterTodtPointsTable.rollOrThrow();
 			totalPoints += points;
 
 			loot.add(
 				WintertodtCrate.open({
 					points,
-					itemsOwned: user.allItemsOwned.clone().add(loot).bank,
+					itemsOwned: user.allItemsOwned.clone().add(loot),
 					skills: user.skillsAsXP,
 					firemakingXP: user.skillsAsXP.firemaking
 				})
@@ -70,7 +47,7 @@ export const wintertodtTask: MinionTask = {
 				`${Emoji.Phoenix} **${user.badgedUsername}'s** minion, ${
 					user.minionName
 				}, just received a Phoenix! Their Wintertodt KC is ${
-					(await getMinigameScore(user.id, 'wintertodt')) + quantity
+					newScore
 				}, and their Firemaking level is ${user.skillLevel(SkillsEnum.Firemaking)}.`
 			);
 		}
@@ -94,12 +71,12 @@ export const wintertodtTask: MinionTask = {
 			numberOfBraziers += randInt(1, 7);
 		}
 		const conXP = numberOfBraziers * constructionXPPerBrazier;
-		let xpStr = await user.addXP({ skillName: SkillsEnum.Construction, amount: conXP });
+		let xpStr = await user.addXP({ skillName: SkillsEnum.Construction, amount: conXP, duration: data.duration });
 
 		// If they have the entire pyromancer outfit, give an extra 0.5% xp bonus
 		if (
 			user.gear.skilling.hasEquipped(
-				Object.keys(Firemaking.pyromancerItems).map(i => parseInt(i)),
+				Object.keys(Firemaking.pyromancerItems).map(i => Number.parseInt(i)),
 				true
 			)
 		) {
@@ -109,7 +86,7 @@ export const wintertodtTask: MinionTask = {
 		} else {
 			// For each pyromancer item, check if they have it, give its' XP boost if so.
 			for (const [itemID, bonus] of Object.entries(Firemaking.pyromancerItems)) {
-				if (user.hasEquipped(parseInt(itemID))) {
+				if (user.hasEquipped(Number.parseInt(itemID))) {
 					const amountToAdd = Math.floor(fmXpToGive * (bonus / 100));
 					fmXpToGive += amountToAdd;
 					fmBonusXP += amountToAdd;
@@ -120,36 +97,33 @@ export const wintertodtTask: MinionTask = {
 		xpStr += `, ${await user.addXP({
 			skillName: SkillsEnum.Woodcutting,
 			amount: wcXpToGive,
+			duration: data.duration,
 			source: 'Wintertodt'
 		})}`;
 		xpStr += `, ${await user.addXP({
 			skillName: SkillsEnum.Firemaking,
 			amount: fmXpToGive,
+			duration: data.duration,
 			source: 'Wintertodt'
 		})}`;
-		const newLevel = user.skillLevel(SkillsEnum.Firemaking);
 
 		const { itemsAdded, previousCL } = await transactItems({
 			userID: user.id,
 			collectionLog: true,
 			itemsToAdd: loot
 		});
-		incrementMinigameScore(user.id, 'wintertodt', quantity);
 
 		const image = await makeBankImage({
+			title: `Loot From ${quantity}x Wintertodt`,
 			bank: itemsAdded,
 			user,
 			previousCL
 		});
 
-		let output = `${user}, ${user.minionName} finished subduing Wintertodt ${quantity}x times. ${xpStr}, you cut ${numberOfRoots}x Bruma roots.`;
+		let output = `${user}, ${user.minionName} finished subduing Wintertodt ${quantity}x times (${calcPerHour(quantity, data.duration).toFixed(1)}/hr), you now have ${newScore} KC. ${xpStr}, you cut ${numberOfRoots}x Bruma roots.`;
 
 		if (fmBonusXP > 0) {
 			output += `\n\n**Firemaking Bonus XP:** ${fmBonusXP.toLocaleString()}`;
-		}
-
-		if (newLevel > currentLevel) {
-			output += `\n\n${user.minionName}'s Firemaking level is now ${newLevel}!`;
 		}
 
 		await trackLoot({

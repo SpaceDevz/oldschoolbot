@@ -1,9 +1,13 @@
-import { strikethrough } from '@discordjs/builders';
-import { toTitleCase } from '@oldschoolgg/toolkit';
+import { toTitleCase } from '@oldschoolgg/toolkit/util';
+import { strikethrough } from 'discord.js';
+import { calcWhatPercent } from 'e';
 import { Bank, Monsters } from 'oldschooljs';
 
-import { diaries, DiaryTier, userhasDiaryTier } from '../../../lib/diaries';
+import type { Minigame } from '@prisma/client';
+import { diaries, userhasDiaryTier, userhasDiaryTierSync } from '../../../lib/diaries';
+import type { DiaryTier } from '../../../lib/minions/types';
 import { Minigames } from '../../../lib/settings/minigames';
+import { MUserStats } from '../../../lib/structures/MUserStats';
 import { formatSkillRequirements, itemNameFromID, stringMatches } from '../../../lib/util';
 
 const lampRewards = {
@@ -26,6 +30,7 @@ export async function achievementDiaryCommand(user: MUser, diaryName: string) {
 	const diary = diaries.find(
 		d => stringMatches(d.name, diaryName) || d.alias?.some(a => stringMatches(a, diaryName))
 	);
+	const stats = await MUserStats.fromID(user.id);
 
 	if (!diary) {
 		let str = 'Your Achievement Diaries\n\n';
@@ -85,7 +90,7 @@ export async function achievementDiaryCommand(user: MUser, diaryName: string) {
 		}
 
 		if (tier.customReq) {
-			const [hasCustomReq, reason] = await tier.customReq(user, true);
+			const [hasCustomReq, reason] = await tier.customReq(user, true, stats);
 			if (!hasCustomReq) {
 				thisStr += `- Extra Requirements: ${reason}\n`;
 			}
@@ -142,8 +147,29 @@ export async function claimAchievementDiaryCommand(user: MUser, diaryName: strin
 			return `You successfully completed the ${name} and received ${loot}.`;
 		}
 
-		return `You can't claim the ${name} because: \n -${reason}.`;
+		return `You can't claim the ${name} because: \n- ${reason}.`;
 	}
 
 	return `You have already completed the entire ${diary.name} diary!`;
+}
+
+export function calculateAchievementDiaryProgress(user: MUser, stats: MUserStats, minigameScores: Minigame) {
+	let totalDiaries = 0;
+	let totalCompleted = 0;
+
+	for (const diaryLocation of diaries) {
+		for (const diaryTier of [diaryLocation.easy, diaryLocation.medium, diaryLocation.hard, diaryLocation.elite]) {
+			const { hasDiary } = userhasDiaryTierSync(user, diaryTier, { stats, minigameScores });
+			totalDiaries++;
+			if (hasDiary) {
+				totalCompleted++;
+			}
+		}
+	}
+
+	return {
+		totalDiaries,
+		totalCompleted,
+		percentComplete: calcWhatPercent(totalCompleted, totalDiaries)
+	};
 }

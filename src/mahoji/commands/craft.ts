@@ -1,16 +1,17 @@
-import { stringMatches } from '@oldschoolgg/toolkit';
+import { stringMatches } from '@oldschoolgg/toolkit/util';
+import type { CommandRunOptions } from '@oldschoolgg/toolkit/util';
+import { ApplicationCommandOptionType } from 'discord.js';
 import { Time } from 'e';
-import { ApplicationCommandOptionType, CommandRunOptions } from 'mahoji';
 
+import { formatDuration } from '@oldschoolgg/toolkit/util';
 import { FaladorDiary, userhasDiaryTier } from '../../lib/diaries';
 import { Craftables } from '../../lib/skilling/skills/crafting/craftables';
 import { SkillsEnum } from '../../lib/skilling/types';
-import { CraftingActivityTaskOptions } from '../../lib/types/minions';
-import { formatDuration } from '../../lib/util';
+import type { CraftingActivityTaskOptions } from '../../lib/types/minions';
 import addSubTaskToActivityTask from '../../lib/util/addSubTaskToActivityTask';
 import { calcMaxTripLength } from '../../lib/util/calcMaxTripLength';
 import { updateBankSetting } from '../../lib/util/updateBankSetting';
-import { OSBMahojiCommand } from '../lib/util';
+import type { OSBMahojiCommand } from '../lib/util';
 
 export const craftCommand: OSBMahojiCommand = {
 	name: 'craft',
@@ -104,7 +105,7 @@ export const craftCommand: OSBMahojiCommand = {
 		const itemsNeeded = craftable.inputItems.clone().multiply(quantity);
 
 		// Check the user has all the required items to craft.
-		if (!userBank.has(itemsNeeded.bank)) {
+		if (!userBank.has(itemsNeeded)) {
 			return `You don't have enough items. For ${quantity}x ${craftable.name}, you're missing **${itemsNeeded
 				.clone()
 				.remove(userBank)}**.`;

@@ -1,30 +1,34 @@
-import { EmbedBuilder, inlineCode } from '@discordjs/builders';
-import { hasBanMemberPerms, miniID } from '@oldschoolgg/toolkit';
-import { activity_type_enum } from '@prisma/client';
-import { ChatInputCommandInteraction, Guild, HexColorString, resolveColor, User } from 'discord.js';
-import { clamp, removeFromArr, Time, uniqueArr } from 'e';
-import { ApplicationCommandOptionType, CommandRunOptions } from 'mahoji';
-import { CommandResponse } from 'mahoji/dist/lib/structures/ICommand';
+import { channelIsSendable, hasBanMemberPerms, miniID } from '@oldschoolgg/toolkit/util';
+import type { CommandResponse } from '@oldschoolgg/toolkit/util';
+import type { CommandRunOptions } from '@oldschoolgg/toolkit/util';
+import type { activity_type_enum } from '@prisma/client';
+import type { ChatInputCommandInteraction, Guild, HexColorString, User } from 'discord.js';
+import { EmbedBuilder, bold, inlineCode, resolveColor } from 'discord.js';
+import { ApplicationCommandOptionType } from 'discord.js';
+import { Time, clamp, removeFromArr, uniqueArr } from 'e';
 import { Bank } from 'oldschooljs';
-import { ItemBank } from 'oldschooljs/dist/meta/types';
+import type { ItemBank } from 'oldschooljs/dist/meta/types';
 
 import { production } from '../../config';
-import { BitField, ParsedCustomEmojiWithGroups, PerkTier } from '../../lib/constants';
+import { BitField, ItemIconPacks, ParsedCustomEmojiWithGroups, PerkTier } from '../../lib/constants';
 import { Eatables } from '../../lib/data/eatables';
 import { CombatOptionsArray, CombatOptionsEnum } from '../../lib/minions/data/combatConstants';
-import { prisma } from '../../lib/settings/prisma';
+
+import { DynamicButtons } from '../../lib/DynamicButtons';
+import { birdhouseSeeds } from '../../lib/skilling/skills/hunter/birdHouseTrapping';
 import { autoslayChoices, slayerMasterChoices } from '../../lib/slayer/constants';
 import { setDefaultAutoslay, setDefaultSlayerMaster } from '../../lib/slayer/slayerUtil';
 import { BankSortMethods } from '../../lib/sorts';
 import { formatDuration, isValidNickname, itemNameFromID, stringMatches } from '../../lib/util';
 import { emojiServers } from '../../lib/util/cachedUserIDs';
 import { getItem } from '../../lib/util/getOSItem';
-import { interactionReplyGetDuration } from '../../lib/util/interactionHelpers';
+import { deferInteraction } from '../../lib/util/interactionReply';
 import { makeBankImage } from '../../lib/util/makeBankImage';
 import { parseBank } from '../../lib/util/parseStringBank';
 import { mahojiGuildSettingsFetch, mahojiGuildSettingsUpdate } from '../guildSettings';
 import { itemOption } from '../lib/mahojiCommandOptions';
-import { allAbstractCommands, OSBMahojiCommand } from '../lib/util';
+import type { OSBMahojiCommand } from '../lib/util';
+import { allAbstractCommands } from '../lib/util';
 import { mahojiUsersSettingsFetch, patronMsg } from '../mahojiSettings';
 
 interface UserConfigToggle {
@@ -47,6 +51,10 @@ const toggles: UserConfigToggle[] = [
 	{
 		name: 'Disable Birdhouse Run Button',
 		bit: BitField.DisableBirdhouseRunButton
+	},
+	{
+		name: 'Disable Auto Slay Button',
+		bit: BitField.DisableAutoSlayButton
 	},
 	{
 		name: 'Disable Ash Sanctifier',
@@ -81,32 +89,39 @@ const toggles: UserConfigToggle[] = [
 				return { result: true, message: 'Your Gambling lockout time has expired.' };
 			} else if (interaction) {
 				const durations = [
-					{ display: '24 hours', duration: Time.Day },
+					{ display: '1 day', duration: Time.Day },
 					{ display: '7 days', duration: Time.Day * 7 },
-					{ display: '2 weeks', duration: Time.Day * 14 },
 					{ display: '1 month', duration: Time.Month },
-					{ display: '3 months', duration: Time.Month * 3 },
 					{ display: '6 months', duration: Time.Month * 6 },
-					{ display: '1 year', duration: Time.Year },
-					{ display: '3 years', duration: Time.Year * 3 },
-					{ display: '5 years', duration: Time.Year * 5 }
+					{ display: '1 year', duration: Time.Year }
 				];
-				if (!production) {
-					durations.push({ display: '30 seconds', duration: Time.Second * 30 });
-					durations.push({ display: '1 minute', duration: Time.Minute });
-					durations.push({ display: '5 minutes', duration: Time.Minute * 5 });
+				const channel = globalClient.channels.cache.get(interaction.channelId);
+				if (!channelIsSendable(channel)) return { result: false, message: 'Could not find channel.' };
+				await deferInteraction(interaction);
+				const buttons = new DynamicButtons({
+					channel: channel,
+					usersWhoCanInteract: [user.id],
+					deleteAfterConfirm: true
+				});
+				for (const dur of durations) {
+					buttons.add({
+						name: dur.display
+					});
 				}
-				const lockoutDuration = await interactionReplyGetDuration(
-					interaction,
-					`${user}, This will lockout your ability to gamble for the specified time. Choose carefully!`,
-					...durations
-				);
+				const pickedButton = await buttons.render({
+					messageOptions: {
+						content: `${user}, This will lockout your ability to gamble for the specified time. Choose carefully!`
+					},
+					isBusy: false
+				});
 
-				if (lockoutDuration !== false) {
-					await user.update({ gambling_lockout_expiry: new Date(Date.now() + lockoutDuration.duration) });
+				const pickedDuration = durations.find(d => stringMatches(d.display, pickedButton?.name ?? ''));
+
+				if (pickedDuration) {
+					await user.update({ gambling_lockout_expiry: new Date(Date.now() + pickedDuration.duration) });
 					return {
 						result: true,
-						message: `Locking out gambling for ${formatDuration(lockoutDuration.duration)}`
+						message: `Locking out gambling for ${formatDuration(pickedDuration.duration)}`
 					};
 				}
 				return { result: false, message: 'Cancelled.' };
@@ -114,6 +129,22 @@ const toggles: UserConfigToggle[] = [
 			// If handleToggle called without an interaction, perhaps by non-interactive code, allow toggle.
 			return { result: true };
 		}
+	},
+	{
+		name: 'Disable farming reminders',
+		bit: BitField.DisabledFarmingReminders
+	},
+	{
+		name: 'Disable Clue Buttons',
+		bit: BitField.DisableClueButtons
+	},
+	{
+		name: 'Disable wilderness high peak time warning',
+		bit: BitField.DisableHighPeakTimeWarning
+	},
+	{
+		name: 'Disable Names on Opens',
+		bit: BitField.DisableOpenableNames
 	}
 ];
 
@@ -181,11 +212,12 @@ async function favItemConfig(
 	const currentFavorites = user.user.favoriteItems;
 	const item = getItem(itemToAdd ?? itemToRemove);
 	const currentItems = `Your current favorite items are: ${
-		currentFavorites.length === 0 ? 'None' : currentFavorites.map(itemNameFromID).join(', ')
+		currentFavorites.length === 0 ? 'None' : currentFavorites.map(itemNameFromID).join(', ').slice(0, 1500)
 	}.`;
+
 	if (!item) return currentItems;
 	if (itemToAdd) {
-		let limit = (user.perkTier() + 1) * 100;
+		const limit = (user.perkTier() + 1) * 100;
 		if (currentFavorites.length >= limit) {
 			return `You can't favorite anymore items, you can favorite a maximum of ${limit}.`;
 		}
@@ -241,7 +273,7 @@ async function favAlchConfig(
 
 	if (!item.highalch) return "That item isn't alchable.";
 
-	const action = Boolean(removeItem) ? 'remove' : 'add';
+	const action = removeItem ? 'remove' : 'add';
 	const isAlreadyFav = currentFavorites.includes(item.id);
 
 	if (action === 'remove') {
@@ -258,11 +290,46 @@ async function favAlchConfig(
 	return `Added ${item.name} to your favorite alchable items.`;
 }
 
+async function favBhSeedsConfig(
+	user: MUser,
+	itemToAdd: string | undefined,
+	itemToRemove: string | undefined,
+	reset: boolean
+) {
+	if (reset) {
+		await user.update({ favorite_bh_seeds: [] });
+		return 'Cleared all favorite birdhouse seeds.';
+	}
+
+	const currentFavorites = user.user.favorite_bh_seeds;
+	if (itemToAdd || itemToRemove) {
+		const item = getItem(itemToAdd ?? itemToRemove);
+		if (!item) return "That item doesn't exist.";
+		if (!birdhouseSeeds.some(seed => seed.item.id === item.id)) return "That item can't be used in birdhouses.";
+		if (itemToAdd) {
+			if (currentFavorites.includes(item.id)) return 'This item is already favorited.';
+			await user.update({ favorite_bh_seeds: [...currentFavorites, item.id] });
+			return `You favorited ${item.name}.`;
+		}
+		if (itemToRemove) {
+			if (!currentFavorites.includes(item.id)) return 'This item is not favorited.';
+			await user.update({ favorite_bh_seeds: removeFromArr(currentFavorites, item.id) });
+			return `You unfavorited ${item.name}.`;
+		}
+	}
+
+	const currentItems = `Your current favorite items are: ${
+		currentFavorites.length === 0 ? 'None' : currentFavorites.map(itemNameFromID).join(', ')
+	}.`;
+	return currentItems;
+}
+
 async function bankSortConfig(
 	user: MUser,
 	sortMethod: string | undefined,
 	addWeightingBank: string | undefined,
-	removeWeightingBank: string | undefined
+	removeWeightingBank: string | undefined,
+	resetWeightingBank: string | undefined
 ): CommandResponse {
 	const currentMethod = user.user.bank_sort_method;
 	const currentWeightingBank = new Bank(user.user.bank_sort_weightings as ItemBank);
@@ -272,7 +339,7 @@ async function bankSortConfig(
 		return patronMsg(PerkTier.Two);
 	}
 
-	if (!sortMethod && !addWeightingBank && !removeWeightingBank) {
+	if (!sortMethod && !addWeightingBank && !removeWeightingBank && !resetWeightingBank) {
 		const sortStr = currentMethod
 			? `Your current bank sort method is ${inlineCode(currentMethod)}.`
 			: 'You have not set a bank sort method.';
@@ -316,12 +383,13 @@ async function bankSortConfig(
 
 	if (addWeightingBank) newBank.add(inputBank);
 	else if (removeWeightingBank) newBank.remove(inputBank);
+	else if (resetWeightingBank && resetWeightingBank === 'reset') newBank.clear();
 
 	await user.update({
-		bank_sort_weightings: newBank.bank
+		bank_sort_weightings: newBank.toJSON()
 	});
 
-	return bankSortConfig(await mUserFetch(user.id), undefined, undefined, undefined);
+	return bankSortConfig(await mUserFetch(user.id), undefined, undefined, undefined, undefined);
 }
 
 async function bgColorConfig(user: MUser, hex?: string) {
@@ -424,42 +492,6 @@ async function handlePetMessagesEnable(
 	return 'Disabled Pet Messages in this guild.';
 }
 
-async function handleJModCommentsEnable(
-	user: MUser,
-	guild: Guild | null,
-	channelID: string,
-	choice: 'enable' | 'disable'
-) {
-	if (!guild) return 'This command can only be run in servers.';
-	if (!(await hasBanMemberPerms(user.id, guild)))
-		return "You need to be 'Ban Member' permissions to use this command.";
-	const cID = channelID.toString();
-	const settings = await mahojiGuildSettingsFetch(guild);
-
-	if (choice === 'enable') {
-		if (guild!.memberCount < 20 && user.perkTier() < PerkTier.Four) {
-			return 'This server is too small to enable this feature in.';
-		}
-		if (settings.jmodComments === cID) {
-			return 'JMod Comments are already enabled in this channel.';
-		}
-		await mahojiGuildSettingsUpdate(guild.id, {
-			jmodComments: cID
-		});
-		if (settings.jmodComments !== null) {
-			return "JMod Comments are already enabled in another channel, but I've switched them to use this channel.";
-		}
-		return 'Enabled JMod Comments in this channel.';
-	}
-	if (settings.jmodComments === null) {
-		return "JMod Comments aren't enabled, so you can't disable them.";
-	}
-	await mahojiGuildSettingsUpdate(guild.id, {
-		jmodComments: null
-	});
-	return 'Disabled JMod Comments in this channel.';
-}
-
 async function handleCommandEnable(
 	user: MUser,
 	guild: Guild | null,
@@ -496,29 +528,22 @@ async function handleCommandEnable(
 	return `Successfully disabled the \`${command.name}\` command.`;
 }
 
-const priorityWarningMsg =
-	"\n\n**Important: By default, 'Always barrage/burst' will take priority if 'Always cannon' is also enabled.**";
 async function handleCombatOptions(user: MUser, command: 'add' | 'remove' | 'list' | 'help', option?: string) {
 	const settings = await mahojiUsersSettingsFetch(user.id, { combat_options: true });
 	if (!command || (command && command === 'list')) {
 		// List enabled combat options:
-		const cbOpts = settings.combat_options.map(o => CombatOptionsArray.find(coa => coa!.id === o)!.name);
+		const cbOpts = settings.combat_options.map(o => CombatOptionsArray.find(coa => coa?.id === o)?.name);
 		return `Your current combat options are:\n${cbOpts.join('\n')}\n\nTry: \`/config user combat_options help\``;
 	}
 
 	if (command === 'help' || !option || !['add', 'remove'].includes(command)) {
-		return (
-			'Changes your Combat Options. Usage: `/config user combat_options [add/remove/list] always cannon`' +
-			`\n\nList of possible options:\n${CombatOptionsArray.map(coa => `**${coa!.name}**: ${coa!.desc}`).join(
-				'\n'
-			)}`
-		);
+		return `Changes your Combat Options. Usage: \`/config user combat_options [add/remove/list] always cannon\`\n\nList of possible options:\n${CombatOptionsArray.map(
+			coa => `**${coa?.name}**: ${coa?.desc}`
+		).join('\n')}`;
 	}
 
 	const newcbopt = CombatOptionsArray.find(
-		item =>
-			stringMatches(option, item.name) ||
-			(item.aliases && item.aliases.some(alias => stringMatches(alias, option)))
+		item => stringMatches(option, item.name) || item.aliases?.some(alias => stringMatches(alias, option))
 	);
 	if (!newcbopt) return 'Cannot find matching option. Try: `/config user combat_options help`';
 
@@ -530,18 +555,12 @@ async function handleCombatOptions(user: MUser, command: 'add' | 'remove' | 'lis
 		return `"${newcbopt.name}" is already ${currentStatus ? 'enabled' : 'disabled'} for you.`;
 	}
 
-	let warningMsg = '';
-	const hasCannon = settings.combat_options.includes(CombatOptionsEnum.AlwaysCannon);
-	const hasBurstB =
-		settings.combat_options.includes(CombatOptionsEnum.AlwaysIceBurst) ||
-		settings.combat_options.includes(CombatOptionsEnum.AlwaysIceBarrage);
 	// If enabling Ice Barrage, make sure burst isn't also enabled:
 	if (
 		nextBool &&
 		newcbopt.id === CombatOptionsEnum.AlwaysIceBarrage &&
 		settings.combat_options.includes(CombatOptionsEnum.AlwaysIceBurst)
 	) {
-		if (hasCannon) warningMsg = priorityWarningMsg;
 		settings.combat_options = removeFromArr(settings.combat_options, CombatOptionsEnum.AlwaysIceBurst);
 	}
 	// If enabling Ice Burst, make sure barrage isn't also enabled:
@@ -550,12 +569,7 @@ async function handleCombatOptions(user: MUser, command: 'add' | 'remove' | 'lis
 		newcbopt.id === CombatOptionsEnum.AlwaysIceBurst &&
 		settings.combat_options.includes(CombatOptionsEnum.AlwaysIceBarrage)
 	) {
-		if (warningMsg === '' && hasCannon) warningMsg = priorityWarningMsg;
 		settings.combat_options = removeFromArr(settings.combat_options, CombatOptionsEnum.AlwaysIceBarrage);
-	}
-	// Warn if enabling cannon with ice burst/barrage:
-	if (nextBool && newcbopt.id === CombatOptionsEnum.AlwaysCannon && warningMsg === '' && hasBurstB) {
-		warningMsg = priorityWarningMsg;
 	}
 	if (nextBool && !settings.combat_options.includes(newcbopt.id)) {
 		await user.update({
@@ -569,7 +583,7 @@ async function handleCombatOptions(user: MUser, command: 'add' | 'remove' | 'lis
 		return 'Error processing command. This should never happen, please report bug.';
 	}
 
-	return `${newcbopt.name} is now ${nextBool ? 'enabled' : 'disabled'} for you.${warningMsg}`;
+	return `${newcbopt.name} is now ${nextBool ? 'enabled' : 'disabled'} for you.`;
 }
 
 async function handleRSN(user: MUser, newRSN: string) {
@@ -603,7 +617,7 @@ async function handleRSN(user: MUser, newRSN: string) {
 function pinnedTripLimit(perkTier: number) {
 	return clamp(perkTier + 1, 1, 4);
 }
-async function pinTripCommand(
+export async function pinTripCommand(
 	user: MUser,
 	tripId: string | undefined,
 	emoji: string | undefined,
@@ -611,18 +625,19 @@ async function pinTripCommand(
 ) {
 	if (!tripId) return 'Invalid trip.';
 	const id = Number(tripId);
+	if (!id || Number.isNaN(id)) return 'Invalid trip.';
 	const trip = await prisma.activity.findFirst({ where: { id, user_id: BigInt(user.id) } });
 	if (!trip) return 'Invalid trip.';
 
 	if (emoji) {
+		const res = ParsedCustomEmojiWithGroups.exec(emoji);
+		if (!res || !res[3]) return "That's not a valid emoji.";
+		emoji = res[3];
+
 		const cachedEmoji = globalClient.emojis.cache.get(emoji);
 		if ((!cachedEmoji || !emojiServers.has(cachedEmoji.guild.id)) && production) {
 			return "Sorry, that emoji can't be used. Only emojis in the main support server, or our emoji servers can be used.";
 		}
-		const res = ParsedCustomEmojiWithGroups.exec(emoji);
-		if (!res || !res[3]) return "That's not a valid emoji.";
-		// eslint-disable-next-line prefer-destructuring
-		emoji = res[3];
 	}
 
 	if (customName) {
@@ -710,23 +725,6 @@ export const configCommand: OSBMahojiCommand = {
 				},
 				{
 					type: ApplicationCommandOptionType.Subcommand,
-					name: 'jmod_comments',
-					description: 'Enable or disable JMod Reddit comments in this server.',
-					options: [
-						{
-							type: ApplicationCommandOptionType.String,
-							name: 'choice',
-							description: 'Enable or disable JMod Reddit comments for this server.',
-							required: true,
-							choices: [
-								{ name: 'Enable', value: 'enable' },
-								{ name: 'Disable', value: 'disable' }
-							]
-						}
-					]
-				},
-				{
-					type: ApplicationCommandOptionType.Subcommand,
 					name: 'command',
 					description: 'Enable or disable a command in your server.',
 					options: [
@@ -744,7 +742,7 @@ export const configCommand: OSBMahojiCommand = {
 						{
 							type: ApplicationCommandOptionType.String,
 							name: 'choice',
-							description: 'Enable or disable JMod Reddit comments for this server.',
+							description: 'Whether you want to enable or disable this command.',
 							required: true,
 							choices: [
 								{ name: 'Enable', value: 'enable' },
@@ -872,6 +870,12 @@ export const configCommand: OSBMahojiCommand = {
 							name: 'remove_weightings',
 							description: "Remove weightings for extra bank sorting (e.g. '1 trout, 5 coal')",
 							required: false
+						},
+						{
+							type: ApplicationCommandOptionType.String,
+							name: 'reset_weightings',
+							description: "Type 'reset' to confirm you want to delete ALL of your bank weightings.",
+							required: false
 						}
 					]
 				},
@@ -902,6 +906,51 @@ export const configCommand: OSBMahojiCommand = {
 							type: ApplicationCommandOptionType.Boolean,
 							name: 'reset',
 							description: 'Reset all of your favorite alchs',
+							required: false
+						}
+					]
+				},
+				{
+					type: ApplicationCommandOptionType.Subcommand,
+					name: 'favorite_bh_seeds',
+					description: 'Manage your favorite birdhouse seeds.',
+					options: [
+						{
+							type: ApplicationCommandOptionType.String,
+							name: 'add',
+							description: 'Add an item to your favorite birdhouse seeds.',
+							required: false,
+							autocomplete: async (value: string) => {
+								return birdhouseSeeds
+									.filter(i => (!value ? true : stringMatches(i.item.name, value)))
+									.map(i => ({
+										name: `${i.item.name}`,
+										value: i.item.id.toString()
+									}));
+							}
+						},
+						{
+							type: ApplicationCommandOptionType.String,
+							name: 'remove',
+							description: 'Remove an item from your favorite birdhouse seeds.',
+							required: false,
+							autocomplete: async (value: string, user: User) => {
+								const mUser = await mahojiUsersSettingsFetch(user.id, { favorite_bh_seeds: true });
+								return birdhouseSeeds
+									.filter(i => {
+										if (!mUser.favorite_bh_seeds.includes(i.item.id)) return false;
+										return !value ? true : stringMatches(i.item.name, value);
+									})
+									.map(i => ({
+										name: `${i.item.name}`,
+										value: i.item.id.toString()
+									}));
+							}
+						},
+						{
+							type: ApplicationCommandOptionType.Boolean,
+							name: 'reset',
+							description: 'Reset all of your favorite birdhouse seeds.',
 							required: false
 						}
 					]
@@ -1006,12 +1055,12 @@ export const configCommand: OSBMahojiCommand = {
 							description: 'The trip you want to pin.',
 							required: false,
 							autocomplete: async (_, user) => {
-								let res = await prisma.$queryRawUnsafe<
+								const res = await prisma.$queryRawUnsafe<
 									{ type: activity_type_enum; data: object; id: number; finish_date: string }[]
 								>(`
 SELECT DISTINCT ON (activity.type) activity.type, activity.data, activity.id, activity.finish_date
 FROM activity
-WHERE finish_date::date > now() - INTERVAL '31 days'
+WHERE finish_date > now() - INTERVAL '14 days'
 AND user_id = '${user.id}'::bigint
 ORDER BY activity.type, finish_date DESC
 LIMIT 20;
@@ -1050,6 +1099,23 @@ LIMIT 20;
 							}
 						}
 					]
+				},
+				{
+					type: ApplicationCommandOptionType.Subcommand,
+					name: 'icon_pack',
+					description: 'Change your icon pack',
+					options: [
+						{
+							type: ApplicationCommandOptionType.String,
+							name: 'name',
+							description: 'The icon pack you want to use.',
+							required: true,
+							choices: ['Default', ...ItemIconPacks.map(i => i.name)].map(i => ({
+								name: i,
+								value: i
+							}))
+						}
+					]
 				}
 			]
 		}
@@ -1064,7 +1130,6 @@ LIMIT 20;
 		server?: {
 			channel?: { choice: 'enable' | 'disable' };
 			pet_messages?: { choice: 'enable' | 'disable' };
-			jmod_comments?: { choice: 'enable' | 'disable' };
 			command?: { command: string; choice: 'enable' | 'disable' };
 		};
 		user?: {
@@ -1072,25 +1137,29 @@ LIMIT 20;
 			combat_options?: { action: 'add' | 'remove' | 'list' | 'help'; input: string };
 			set_rsn?: { username: string };
 			bg_color?: { color?: string };
-			bank_sort?: { sort_method?: string; add_weightings?: string; remove_weightings?: string };
+			bank_sort?: {
+				sort_method?: string;
+				add_weightings?: string;
+				remove_weightings?: string;
+				reset_weightings?: string;
+			};
 			favorite_alchs?: { add?: string; remove?: string; add_many?: string; reset?: boolean };
 			favorite_food?: { add?: string; remove?: string; reset?: boolean };
 			favorite_items?: { add?: string; remove?: string; reset?: boolean };
+			favorite_bh_seeds?: { add?: string; remove?: string; reset?: boolean };
 			slayer?: { master?: string; autoslay?: string };
 			pin_trip?: { trip?: string; unpin_trip?: string; emoji?: string; custom_name?: string };
+			icon_pack?: { name?: string };
 		};
 	}>) => {
 		const user = await mUserFetch(userID);
-		const guild = guildID ? globalClient.guilds.cache.get(guildID.toString()) ?? null : null;
+		const guild = guildID ? (globalClient.guilds.cache.get(guildID.toString()) ?? null) : null;
 		if (options.server) {
 			if (options.server.channel) {
 				return handleChannelEnable(user, guild, channelID, options.server.channel.choice);
 			}
 			if (options.server.pet_messages) {
 				return handlePetMessagesEnable(user, guild, channelID, options.server.pet_messages.choice);
-			}
-			if (options.server.jmod_comments) {
-				return handleJModCommentsEnable(user, guild, channelID, options.server.jmod_comments.choice);
 			}
 			if (options.server.command) {
 				return handleCommandEnable(user, guild, options.server.command.command, options.server.command.choice);
@@ -1106,9 +1175,36 @@ LIMIT 20;
 				favorite_alchs,
 				favorite_food,
 				favorite_items,
+				favorite_bh_seeds,
 				slayer,
-				pin_trip
+				pin_trip,
+				icon_pack
 			} = options.user;
+			if (icon_pack) {
+				if (icon_pack.name) {
+					if (icon_pack.name === 'Default') {
+						if (user.user.icon_pack_id) {
+							await user.update({
+								icon_pack_id: null
+							});
+							return 'Your icon pack is now set to default.';
+						}
+						return 'Your icon pack is already set to default.';
+					}
+
+					const pack = ItemIconPacks.find(i => i.name === icon_pack.name);
+					if (!pack) return 'Invalid icon pack.';
+
+					if (!user.user.store_bitfield.includes(pack.storeBitfield)) {
+						return 'You do not own this icon pack.';
+					}
+					await user.update({
+						icon_pack_id: pack.id
+					});
+					return `Your icon pack is now set to ${bold(pack.name)}.`;
+				}
+			}
+
 			if (toggle) {
 				return handleToggle(user, toggle.name, interaction);
 			}
@@ -1126,7 +1222,8 @@ LIMIT 20;
 					user,
 					bank_sort.sort_method,
 					bank_sort.add_weightings,
-					bank_sort.remove_weightings
+					bank_sort.remove_weightings,
+					bank_sort.reset_weightings
 				);
 			}
 			if (favorite_alchs) {
@@ -1143,6 +1240,14 @@ LIMIT 20;
 			}
 			if (favorite_items) {
 				return favItemConfig(user, favorite_items.add, favorite_items.remove, Boolean(favorite_items.reset));
+			}
+			if (favorite_bh_seeds) {
+				return favBhSeedsConfig(
+					user,
+					favorite_bh_seeds.add,
+					favorite_bh_seeds.remove,
+					Boolean(favorite_bh_seeds.reset)
+				);
 			}
 			if (slayer) {
 				if (slayer.autoslay) {
